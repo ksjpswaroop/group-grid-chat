@@ -5,10 +5,18 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SearchBar } from "@/components/SearchBar";
 import { NotificationBell } from "@/components/NotificationBell";
+import { usePresenceUpdater } from "@/hooks/usePresenceUpdater";
+import { useDesktopNotifications } from "@/hooks/useDesktopNotifications";
 
 const Index = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  
+  // Auto-update presence
+  usePresenceUpdater();
+  
+  // Enable desktop notifications
+  useDesktopNotifications();
 
   useEffect(() => {
     checkAuth();

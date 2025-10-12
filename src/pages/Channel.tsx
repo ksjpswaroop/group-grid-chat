@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hash, Pin, X, WifiOff, Phone } from "lucide-react";
+import { Hash, Pin, X, WifiOff, Phone, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { getRealtimeManager } from "@/lib/realtime";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -22,6 +22,7 @@ import CallInterface from "@/components/calls/CallInterface";
 import { FileUpload } from "@/components/FileUpload";
 import { FilePreview } from "@/components/FilePreview";
 import { EditMessageDialog } from "@/components/EditMessageDialog";
+import { NotificationPreferences } from "@/components/NotificationPreferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -114,6 +115,9 @@ const Channel = () => {
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<{ url: string; name: string; type: string } | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+  
+  // Phase 3: Notification preferences
+  const [showNotificationPrefs, setShowNotificationPrefs] = useState(false);
 
   useEffect(() => {
     if (channelId) {
@@ -617,6 +621,13 @@ const Channel = () => {
                 <Pin className="h-4 w-4 mr-2" />
                 Pinned
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowNotificationPrefs(true)}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -789,6 +800,13 @@ const Channel = () => {
           fileType={previewFile.type}
         />
       )}
+      
+      {/* Notification Preferences */}
+      <NotificationPreferences
+        channelId={channelId || ''}
+        open={showNotificationPrefs}
+        onOpenChange={setShowNotificationPrefs}
+      />
     </div>
   );
 };
