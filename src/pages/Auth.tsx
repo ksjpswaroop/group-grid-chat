@@ -9,10 +9,8 @@ import { toast } from "sonner";
 import { MessageSquare } from "lucide-react";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -21,33 +19,15 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        toast.success("Welcome back!");
-        navigate("/");
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-            emailRedirectTo: `${window.location.origin}/`,
-          },
-        });
-
-        if (error) throw error;
-
-        toast.success("Account created successfully!");
-        navigate("/");
-      }
+      toast.success("Welcome back!");
+      navigate("/");
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -67,25 +47,11 @@ const Auth = () => {
         <h1 className="text-3xl font-bold text-center mb-2 bg-gradient-primary bg-clip-text text-transparent">
           TeamSync
         </h1>
-        <p className="text-center text-muted-foreground mb-8">
-          {isLogin ? "Welcome back!" : "Create your account"}
+        <p className="text-center text-muted-foreground mb-6">
+          Welcome back! Sign in to continue.
         </p>
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {!isLogin && (
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                type="text"
-                placeholder="John Doe"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-            </div>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -116,20 +82,17 @@ const Auth = () => {
             className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
             disabled={loading}
           >
-            {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
+            {loading ? "Loading..." : "Sign In"}
           </Button>
         </form>
 
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-sm text-accent hover:underline"
-          >
-            {isLogin
-              ? "Don't have an account? Sign up"
-              : "Already have an account? Sign in"}
-          </button>
+        <div className="mt-6 text-center p-4 bg-muted/50 rounded-lg border border-border">
+          <p className="text-sm text-muted-foreground">
+            Don't have an account?
+          </p>
+          <p className="text-sm text-foreground mt-1">
+            Contact your administrator for access.
+          </p>
         </div>
       </Card>
     </div>
