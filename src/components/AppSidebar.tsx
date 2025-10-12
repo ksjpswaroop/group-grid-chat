@@ -105,7 +105,7 @@ export function AppSidebar() {
           <div className="bg-gradient-accent p-2 rounded-lg">
             <MessageSquare className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
-          <span className="font-bold text-lg text-sidebar-foreground">TeamChat</span>
+          <span className="font-bold text-lg text-sidebar-foreground">TeamSync</span>
         </div>
       </SidebarHeader>
 
