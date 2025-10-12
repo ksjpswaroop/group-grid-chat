@@ -8,6 +8,11 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+import Auth from "./pages/Auth";
+import Channel from "./pages/Channel";
+import Admin from "./pages/Admin";
+import AdminChannels from "./pages/AdminChannels";
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -15,7 +20,12 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Index />}>
+            <Route path="channel/:channelId" element={<Channel />} />
+            <Route path="admin" element={<Admin />} />
+            <Route path="admin/channels" element={<AdminChannels />} />
+          </Route>
+          <Route path="/auth" element={<Auth />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
