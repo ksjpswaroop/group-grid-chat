@@ -14,6 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      call_participants: {
+        Row: {
+          call_id: string
+          id: string
+          is_muted: boolean | null
+          is_screen_sharing: boolean | null
+          is_video_enabled: boolean | null
+          joined_at: string | null
+          left_at: string | null
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          id?: string
+          is_muted?: boolean | null
+          is_screen_sharing?: boolean | null
+          is_video_enabled?: boolean | null
+          joined_at?: string | null
+          left_at?: string | null
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          id?: string
+          is_muted?: boolean | null
+          is_screen_sharing?: boolean | null
+          is_video_enabled?: boolean | null
+          joined_at?: string | null
+          left_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calls: {
+        Row: {
+          call_type: string | null
+          channel_id: string | null
+          created_at: string | null
+          dm_conversation_id: string | null
+          ended_at: string | null
+          id: string
+          is_active: boolean | null
+          is_recording: boolean | null
+          recording_url: string | null
+          room_name: string
+          started_at: string | null
+          started_by: string
+        }
+        Insert: {
+          call_type?: string | null
+          channel_id?: string | null
+          created_at?: string | null
+          dm_conversation_id?: string | null
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_recording?: boolean | null
+          recording_url?: string | null
+          room_name: string
+          started_at?: string | null
+          started_by: string
+        }
+        Update: {
+          call_type?: string | null
+          channel_id?: string | null
+          created_at?: string | null
+          dm_conversation_id?: string | null
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_recording?: boolean | null
+          recording_url?: string | null
+          room_name?: string
+          started_at?: string | null
+          started_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_dm_conversation_id_fkey"
+            columns: ["dm_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "dm_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_members: {
         Row: {
           channel_id: string
@@ -261,6 +362,33 @@ export type Database = {
           invited_by?: string
           role?: Database["public"]["Enums"]["app_role"]
           token?: string
+        }
+        Relationships: []
+      }
+      livekit_config: {
+        Row: {
+          api_key: string
+          api_secret: string
+          api_url: string
+          created_at: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          api_secret: string
+          api_url: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          api_secret?: string
+          api_url?: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
         }
         Relationships: []
       }

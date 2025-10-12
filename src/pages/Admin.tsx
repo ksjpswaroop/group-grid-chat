@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Users, Shield } from "lucide-react";
+import { Users, Shield, Video } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -27,10 +29,17 @@ interface User {
 const Admin = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [livekitConfig, setLivekitConfig] = useState({
+    api_url: '',
+    api_key: '',
+    api_secret: '',
+  });
+  const [savingConfig, setSavingConfig] = useState(false);
 
   useEffect(() => {
     checkAdminAccess();
     loadUsers();
+    loadLivekitConfig();
   }, []);
 
   const checkAdminAccess = async () => {
@@ -73,6 +82,60 @@ const Admin = () => {
     setLoading(false);
   };
 
+  const loadLivekitConfig = async () => {
+    const { data, error } = await supabase
+      .from('livekit_config')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      setLivekitConfig({
+        api_url: data.api_url,
+        api_key: data.api_key,
+        api_secret: data.api_secret,
+      });
+    }
+  };
+
+  const saveLivekitConfig = async () => {
+    if (!livekitConfig.api_url || !livekitConfig.api_key || !livekitConfig.api_secret) {
+      toast.error('Please fill in all LiveKit configuration fields');
+      return;
+    }
+
+    setSavingConfig(true);
+    try {
+      const { data: existing } = await supabase
+        .from('livekit_config')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from('livekit_config')
+          .update(livekitConfig)
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('livekit_config')
+          .insert(livekitConfig);
+
+        if (error) throw error;
+      }
+
+      toast.success('LiveKit configuration saved successfully');
+    } catch (error: any) {
+      console.error('Error saving LiveKit config:', error);
+      toast.error(error.message || 'Failed to save LiveKit configuration');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   const toggleAdminRole = async (userId: string, currentlyAdmin: boolean) => {
     try {
       if (currentlyAdmin) {
@@ -113,6 +176,51 @@ const Admin = () => {
           <InviteUserDialog />
         </div>
       </div>
+
+      <Card className="shadow-medium">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Video className="h-5 w-5" />
+            <CardTitle>LiveKit Configuration</CardTitle>
+          </div>
+          <CardDescription>
+            Configure your self-hosted LiveKit server for audio/video calls
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="api_url">LiveKit Server URL</Label>
+            <Input
+              id="api_url"
+              value={livekitConfig.api_url}
+              onChange={(e) => setLivekitConfig({ ...livekitConfig, api_url: e.target.value })}
+              placeholder="wss://livekit.yourdomain.com"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="api_key">API Key</Label>
+            <Input
+              id="api_key"
+              value={livekitConfig.api_key}
+              onChange={(e) => setLivekitConfig({ ...livekitConfig, api_key: e.target.value })}
+              placeholder="API key from LiveKit"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="api_secret">API Secret</Label>
+            <Input
+              id="api_secret"
+              type="password"
+              value={livekitConfig.api_secret}
+              onChange={(e) => setLivekitConfig({ ...livekitConfig, api_secret: e.target.value })}
+              placeholder="API secret from LiveKit"
+            />
+          </div>
+          <Button onClick={saveLivekitConfig} disabled={savingConfig}>
+            {savingConfig ? 'Saving...' : 'Save Configuration'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="p-6 shadow-medium">
         {loading ? (

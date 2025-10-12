@@ -11,6 +11,9 @@ import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { Phone, Video, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useCall } from '@/hooks/useCall';
+import CallPreflight from '@/components/calls/CallPreflight';
+import CallInterface from '@/components/calls/CallInterface';
 
 interface DirectMessage {
   id: string;
@@ -37,15 +40,21 @@ export default function DirectMessage() {
   const [otherUser, setOtherUser] = useState<OtherUser | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [dmConversationId, setDmConversationId] = useState<string | null>(null);
 
   const { getPresence } = usePresence(userId ? [userId] : []);
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(`dm-${userId}`);
+  const { activeCall, startCall, loading: callLoading } = useCall(undefined, dmConversationId || undefined);
+  const [showPreflight, setShowPreflight] = useState(false);
+  const [showCallInterface, setShowCallInterface] = useState(false);
+  const [callDevices, setCallDevices] = useState<any>(null);
 
   useEffect(() => {
     if (!userId) return;
     
     loadMessages();
     loadOtherUser();
+    loadOrCreateDmConversation();
 
     const channel = supabase
       .channel(`dm-${userId}`)
@@ -72,6 +81,49 @@ export default function DirectMessage() {
       channel.unsubscribe();
     };
   }, [userId]);
+
+  const loadOrCreateDmConversation = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !userId) return;
+
+    // Try to find existing DM conversation
+    const { data: existing } = await supabase
+      .from('dm_participants')
+      .select('dm_id')
+      .eq('user_id', user.id);
+
+    if (existing && existing.length > 0) {
+      // Check if any of these conversations include the other user
+      for (const conv of existing) {
+        const { data: otherParticipant } = await supabase
+          .from('dm_participants')
+          .select('user_id')
+          .eq('dm_id', conv.dm_id)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (otherParticipant) {
+          setDmConversationId(conv.dm_id);
+          return;
+        }
+      }
+    }
+
+    // Create new DM conversation
+    const { data: newConv, error } = await supabase
+      .from('dm_conversations')
+      .insert({})
+      .select()
+      .single();
+
+    if (newConv && !error) {
+      await supabase.from('dm_participants').insert([
+        { dm_id: newConv.id, user_id: user.id },
+        { dm_id: newConv.id, user_id: userId }
+      ]);
+      setDmConversationId(newConv.id);
+    }
+  };
 
   const loadOtherUser = async () => {
     if (!userId) return;
@@ -197,10 +249,32 @@ export default function DirectMessage() {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="ghost" size="icon" disabled>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => {
+                if (activeCall) {
+                  setShowCallInterface(true);
+                } else {
+                  setShowPreflight(true);
+                }
+              }}
+              disabled={callLoading || !dmConversationId}
+            >
               <Phone className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" disabled>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => {
+                if (activeCall) {
+                  setShowCallInterface(true);
+                } else {
+                  setShowPreflight(true);
+                }
+              }}
+              disabled={callLoading || !dmConversationId}
+            >
               <Video className="h-5 w-5" />
             </Button>
           </div>
@@ -272,6 +346,35 @@ export default function DirectMessage() {
           </Button>
         </div>
       </form>
+      
+      {/* Call Components */}
+      {showPreflight && (
+        <CallPreflight
+          open={showPreflight}
+          onClose={() => setShowPreflight(false)}
+          onJoin={async (devices) => {
+            setCallDevices(devices);
+            setShowPreflight(false);
+            if (!activeCall) {
+              const call = await startCall('video');
+              if (call) {
+                setShowCallInterface(true);
+              }
+            } else {
+              setShowCallInterface(true);
+            }
+          }}
+        />
+      )}
+      
+      {showCallInterface && activeCall && (
+        <CallInterface
+          callId={activeCall.id}
+          roomName={activeCall.room_name}
+          onLeave={() => setShowCallInterface(false)}
+          {...callDevices}
+        />
+      )}
     </div>
   );
 }

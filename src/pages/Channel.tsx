@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hash, Pin, X, WifiOff } from "lucide-react";
+import { Hash, Pin, X, WifiOff, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { getRealtimeManager } from "@/lib/realtime";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -16,6 +16,9 @@ import ThreadPanel from "@/components/ThreadPanel";
 import PinnedMessagesPanel from "@/components/PinnedMessagesPanel";
 import MentionAutocomplete from "@/components/MentionAutocomplete";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useCall } from "@/hooks/useCall";
+import CallPreflight from "@/components/calls/CallPreflight";
+import CallInterface from "@/components/calls/CallInterface";
 
 interface Message {
   id: string;
@@ -78,6 +81,12 @@ const Channel = () => {
   // Phase 6: Network status and offline support
   const { isOnline } = useNetworkStatus();
   const [queuedCount, setQueuedCount] = useState(0);
+  
+  // Phase 7: Calls
+  const { activeCall, startCall, endCall, loading: callLoading } = useCall(channelId);
+  const [showPreflight, setShowPreflight] = useState(false);
+  const [showCallInterface, setShowCallInterface] = useState(false);
+  const [callDevices, setCallDevices] = useState<any>(null);
 
   useEffect(() => {
     if (channelId) {
@@ -428,14 +437,31 @@ const Channel = () => {
                 )}
               </div>
             </div>
-            <Button
-              variant={showPinnedPanel ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setShowPinnedPanel(!showPinnedPanel)}
-            >
-              <Pin className="h-4 w-4 mr-2" />
-              Pinned
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (activeCall) {
+                    setShowCallInterface(true);
+                  } else {
+                    setShowPreflight(true);
+                  }
+                }}
+                disabled={callLoading}
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                {activeCall ? 'Join Call' : 'Start Call'}
+              </Button>
+              <Button
+                variant={showPinnedPanel ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setShowPinnedPanel(!showPinnedPanel)}
+              >
+                <Pin className="h-4 w-4 mr-2" />
+                Pinned
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -497,6 +523,35 @@ const Channel = () => {
           </form>
         </div>
       </div>
+      
+      {/* Call Components */}
+      {showPreflight && (
+        <CallPreflight
+          open={showPreflight}
+          onClose={() => setShowPreflight(false)}
+          onJoin={async (devices) => {
+            setCallDevices(devices);
+            setShowPreflight(false);
+            if (!activeCall) {
+              const call = await startCall('video');
+              if (call) {
+                setShowCallInterface(true);
+              }
+            } else {
+              setShowCallInterface(true);
+            }
+          }}
+        />
+      )}
+      
+      {showCallInterface && activeCall && (
+        <CallInterface
+          callId={activeCall.id}
+          roomName={activeCall.room_name}
+          onLeave={() => setShowCallInterface(false)}
+          {...callDevices}
+        />
+      )}
 
       {activeThreadId && activeThreadMessage && (
         <div className="w-96 border-l">
