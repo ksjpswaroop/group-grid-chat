@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Outlet } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Outlet } from "react-router-dom";
+import { SearchBar } from "@/components/SearchBar";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -17,7 +18,6 @@ const Index = () => {
         if (event === "SIGNED_OUT") {
           navigate("/auth");
         } else if (event === "SIGNED_IN") {
-          // Redirect to first channel
           loadFirstChannel();
         }
       }
@@ -62,8 +62,12 @@ const Index = () => {
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <main className="flex-1 flex flex-col">
-          <header className="h-12 flex items-center border-b bg-card px-4 shadow-soft">
-            <SidebarTrigger />
+          <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+            <div className="flex items-center gap-4 px-6 py-3">
+              <SidebarTrigger className="lg:hidden" />
+              <SearchBar />
+              <NotificationBell />
+            </div>
           </header>
           <div className="flex-1 overflow-hidden">
             <Outlet />
