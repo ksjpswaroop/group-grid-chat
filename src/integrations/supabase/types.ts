@@ -264,12 +264,80 @@ export type Database = {
         }
         Relationships: []
       }
+      mentions: {
+        Row: {
+          created_at: string | null
+          id: string
+          mentioned_user_id: string
+          message_id: string
+          read_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          mentioned_user_id: string
+          message_id: string
+          read_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          mentioned_user_id?: string
+          message_id?: string
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mentions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_reactions: {
+        Row: {
+          created_at: string | null
+          emoji: string
+          id: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          emoji: string
+          id?: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          emoji?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           channel_id: string | null
           content: string
           created_at: string | null
           id: string
+          is_pinned: boolean | null
+          parent_message_id: string | null
+          pinned_at: string | null
+          pinned_by: string | null
           updated_at: string | null
           user_id: string
         }
@@ -278,6 +346,10 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          is_pinned?: boolean | null
+          parent_message_id?: string | null
+          pinned_at?: string | null
+          pinned_by?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -286,6 +358,10 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          is_pinned?: boolean | null
+          parent_message_id?: string | null
+          pinned_at?: string | null
+          pinned_by?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -295,6 +371,13 @@ export type Database = {
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_parent_message_id_fkey"
+            columns: ["parent_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]
@@ -363,6 +446,35 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      thread_followers: {
+        Row: {
+          created_at: string | null
+          id: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thread_followers_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       typing_indicators: {
         Row: {
@@ -440,6 +552,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_message_reactions_summary: {
+        Args: { msg_id: string }
+        Returns: {
+          count: number
+          current_user_reacted: boolean
+          emoji: string
+          user_ids: string[]
+        }[]
+      }
+      get_thread_reply_count: {
+        Args: { parent_id: string }
+        Returns: number
+      }
       get_unread_count: {
         Args: { _user_id: string }
         Returns: {

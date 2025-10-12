@@ -2,23 +2,31 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Hash } from "lucide-react";
+import { Hash, Pin, X } from "lucide-react";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
 import { getRealtimeManager } from "@/lib/realtime";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import MessageItem from "@/components/MessageItem";
+import ThreadPanel from "@/components/ThreadPanel";
+import PinnedMessagesPanel from "@/components/PinnedMessagesPanel";
+import MentionAutocomplete from "@/components/MentionAutocomplete";
 
 interface Message {
   id: string;
   content: string;
   created_at: string;
+  updated_at: string;
   user_id: string;
-  profiles: {
-    full_name: string | null;
-    email: string;
+  channel_id: string;
+  parent_message_id?: string | null;
+  is_pinned: boolean;
+  pinned_at?: string | null;
+  pinned_by?: string | null;
+  profiles?: {
+    full_name: string;
+    avatar_url?: string;
   };
 }
 
@@ -26,6 +34,19 @@ interface Channel {
   id: string;
   name: string;
   description: string | null;
+}
+
+interface User {
+  id: string;
+  full_name: string;
+  avatar_url?: string;
+}
+
+interface Reaction {
+  emoji: string;
+  count: number;
+  user_ids: string[];
+  current_user_reacted: boolean;
 }
 
 const Channel = () => {
@@ -36,8 +57,19 @@ const Channel = () => {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(channelId || "");
   const realtimeManager = getRealtimeManager();
+  
+  // Phase 5 features
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [showPinnedPanel, setShowPinnedPanel] = useState(false);
+  const [channelMembers, setChannelMembers] = useState<User[]>([]);
+  const [showMentionAutocomplete, setShowMentionAutocomplete] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
+  const [threadReplyCounts, setThreadReplyCounts] = useState<Record<string, number>>({});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (channelId) {
@@ -45,21 +77,42 @@ const Channel = () => {
       loadMessages();
       joinChannel();
       getCurrentUser();
+      loadChannelMembers();
+      checkAdminStatus();
 
+      // Subscribe to messages
       realtimeManager.subscribeToChannel(`messages-${channelId}`, {
         filter: {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'messages',
           filter: `channel_id=eq.${channelId}`
         },
         onMessage: () => {
           loadMessages();
+          loadThreadReplyCounts();
         }
       });
 
+      // Subscribe to reactions
+      const reactionsChannel = supabase
+        .channel(`reactions-${channelId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'message_reactions'
+          },
+          () => {
+            loadReactionsForMessages();
+          }
+        )
+        .subscribe();
+
       return () => {
         realtimeManager.unsubscribeFromChannel(`messages-${channelId}`);
+        supabase.removeChannel(reactionsChannel);
       };
     }
   }, [channelId]);
@@ -68,9 +121,29 @@ const Channel = () => {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    if (messages.length > 0) {
+      loadReactionsForMessages();
+      loadThreadReplyCounts();
+    }
+  }, [messages]);
+
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     setCurrentUserId(user?.id || null);
+  };
+
+  const checkAdminStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      setIsAdmin(!!data);
+    }
   };
 
   const scrollToBottom = () => {
@@ -91,28 +164,65 @@ const Channel = () => {
   const loadMessages = async () => {
     const { data } = await supabase
       .from("messages")
-      .select(`
-        id,
-        content,
-        created_at,
-        updated_at,
-        user_id,
-        channel_id,
-        profiles!messages_user_id_fkey (
-          full_name,
-          email
-        )
-      `)
+      .select("*, profiles!messages_user_id_fkey(full_name, avatar_url)")
       .eq("channel_id", channelId)
+      .is("parent_message_id", null)
       .order("created_at", { ascending: true });
 
     if (data) {
-      const messagesWithProfiles = data.map((msg) => ({
-        ...msg,
-        profiles: Array.isArray(msg.profiles) ? msg.profiles[0] : msg.profiles,
-      }));
-      setMessages(messagesWithProfiles as Message[]);
+      setMessages(data as any);
     }
+  };
+
+  const loadChannelMembers = async () => {
+    const { data } = await supabase
+      .from("channel_members")
+      .select("user_id, profiles!channel_members_user_id_fkey(id, full_name, avatar_url)")
+      .eq("channel_id", channelId);
+
+    if (data) {
+      const members = data.map(item => {
+        const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+        return {
+          id: profile?.id || item.user_id,
+          full_name: profile?.full_name || "Unknown User",
+          avatar_url: profile?.avatar_url
+        };
+      }).filter(m => m.id);
+      setChannelMembers(members as User[]);
+    }
+  };
+
+  const loadReactionsForMessages = async () => {
+    const messageIds = messages.map(m => m.id);
+    if (messageIds.length === 0) return;
+
+    const reactions: Record<string, Reaction[]> = {};
+    
+    for (const messageId of messageIds) {
+      const { data } = await supabase.rpc('get_message_reactions_summary', { msg_id: messageId });
+      if (data && data.length > 0) {
+        reactions[messageId] = data as Reaction[];
+      }
+    }
+    
+    setMessageReactions(reactions);
+  };
+
+  const loadThreadReplyCounts = async () => {
+    const messageIds = messages.map(m => m.id);
+    if (messageIds.length === 0) return;
+
+    const counts: Record<string, number> = {};
+    
+    for (const messageId of messageIds) {
+      const { data } = await supabase.rpc('get_thread_reply_count', { parent_id: messageId });
+      if (data) {
+        counts[messageId] = Number(data);
+      }
+    }
+    
+    setThreadReplyCounts(counts);
   };
 
   const joinChannel = async () => {
@@ -127,9 +237,21 @@ const Channel = () => {
     }
   };
 
+  const parseMentions = (content: string) => {
+    const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+    const mentions: string[] = [];
+    let match;
+    
+    while ((match = mentionRegex.exec(content)) !== null) {
+      mentions.push(match[2]); // user_id
+    }
+    
+    return mentions;
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || loading) return;
 
     setLoading(true);
     try {
@@ -137,21 +259,142 @@ const Channel = () => {
       
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase.from("messages").insert({
-        channel_id: channelId,
-        user_id: user.id,
-        content: newMessage.trim(),
-      });
+      const { data: message, error } = await supabase
+        .from("messages")
+        .insert({
+          channel_id: channelId,
+          user_id: user.id,
+          content: newMessage.trim(),
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
+      // Create mentions
+      const mentionedUserIds = parseMentions(newMessage);
+      if (mentionedUserIds.length > 0 && message) {
+        await supabase
+          .from("mentions")
+          .insert(
+            mentionedUserIds.map(userId => ({
+              message_id: message.id,
+              mentioned_user_id: userId
+            }))
+          );
+      }
+
       setNewMessage("");
+      stopTyping();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleReaction = async (messageId: string, emoji: string) => {
+    if (!currentUserId) return;
+
+    // Check if user already reacted with this emoji
+    const currentReactions = messageReactions[messageId] || [];
+    const existingReaction = currentReactions.find(
+      r => r.emoji === emoji && r.current_user_reacted
+    );
+
+    if (existingReaction) {
+      // Remove reaction
+      await supabase
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", messageId)
+        .eq("user_id", currentUserId)
+        .eq("emoji", emoji);
+    } else {
+      // Add reaction
+      await supabase
+        .from("message_reactions")
+        .insert({
+          message_id: messageId,
+          user_id: currentUserId,
+          emoji: emoji
+        });
+    }
+
+    loadReactionsForMessages();
+  };
+
+  const handlePinMessage = async (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message) return;
+
+    const { error } = await supabase
+      .from("messages")
+      .update({
+        is_pinned: !message.is_pinned,
+        pinned_at: !message.is_pinned ? new Date().toISOString() : null,
+        pinned_by: !message.is_pinned ? currentUserId : null
+      })
+      .eq("id", messageId);
+
+    if (error) {
+      toast.error("Failed to pin message");
+    } else {
+      toast.success(message.is_pinned ? "Message unpinned" : "Message pinned");
+      loadMessages();
+    }
+  };
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setNewMessage(value);
+
+    // Check for @ mentions
+    const cursorPosition = e.target.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPosition);
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+    
+    if (lastAtSymbol !== -1 && lastAtSymbol === textBeforeCursor.length - 1) {
+      setShowMentionAutocomplete(true);
+      setMentionQuery("");
+    } else if (lastAtSymbol !== -1) {
+      const queryAfterAt = textBeforeCursor.slice(lastAtSymbol + 1);
+      if (queryAfterAt && !queryAfterAt.includes(' ')) {
+        setShowMentionAutocomplete(true);
+        setMentionQuery(queryAfterAt);
+      } else {
+        setShowMentionAutocomplete(false);
+      }
+    } else {
+      setShowMentionAutocomplete(false);
+    }
+
+    if (value) {
+      startTyping();
+    } else {
+      stopTyping();
+    }
+  };
+
+  const handleMentionSelect = (user: User) => {
+    const cursorPosition = textareaRef.current?.selectionStart || 0;
+    const textBeforeCursor = newMessage.slice(0, cursorPosition);
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+    
+    const textBefore = newMessage.slice(0, lastAtSymbol);
+    const textAfter = newMessage.slice(cursorPosition);
+    
+    const mention = `@[${user.full_name}](${user.id}) `;
+    setNewMessage(textBefore + mention + textAfter);
+    setShowMentionAutocomplete(false);
+    setMentionQuery("");
+    
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  };
+
+  const activeThreadMessage = messages.find(m => m.id === activeThreadId);
 
   if (!channel) {
     return (
@@ -162,92 +405,116 @@ const Channel = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b p-4 shadow-soft bg-card">
-        <div className="flex items-center gap-2">
-          <div className="bg-gradient-accent p-2 rounded-lg">
-            <Hash className="h-5 w-5 text-accent-foreground" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">{channel.name}</h2>
-            {channel.description && (
-              <p className="text-sm text-muted-foreground">{channel.description}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex gap-3 animate-slide-in ${
-                message.user_id === currentUserId ? "flex-row-reverse" : ""
-              }`}
-            >
-              <Avatar className="h-10 w-10 border-2 border-accent">
-                <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                  {message.profiles.full_name?.[0]?.toUpperCase() ||
-                    message.profiles.email[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className={`flex-1 ${message.user_id === currentUserId ? "text-right" : ""}`}>
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className={`font-semibold ${message.user_id === currentUserId ? "order-2" : ""}`}>
-                    {message.profiles.full_name || message.profiles.email}
-                  </span>
-                  <span className={`text-xs text-muted-foreground ${message.user_id === currentUserId ? "order-1" : ""}`}>
-                    {formatDistanceToNow(new Date(message.created_at), {
-                      addSuffix: true,
-                    })}
-                  </span>
-                </div>
-                <div
-                  className={`inline-block p-3 rounded-lg shadow-soft max-w-2xl ${
-                    message.user_id === currentUserId
-                      ? "bg-gradient-accent text-accent-foreground"
-                      : "bg-card"
-                  }`}
-                >
-                  <p className="text-sm break-words">{message.content}</p>
-                </div>
+    <div className="flex h-full">
+      <div className="flex flex-col flex-1">
+        <div className="border-b p-4 shadow-soft bg-card">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="bg-gradient-accent p-2 rounded-lg">
+                <Hash className="h-5 w-5 text-accent-foreground" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{channel.name}</h2>
+                {channel.description && (
+                  <p className="text-sm text-muted-foreground">{channel.description}</p>
+                )}
               </div>
             </div>
-          ))}
-          {typingUsers.length > 0 && (
-            <div className="text-sm text-muted-foreground italic">
-              {typingUsers.map(u => u.full_name || u.email).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
-            </div>
-          )}
+            <Button
+              variant={showPinnedPanel ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setShowPinnedPanel(!showPinnedPanel)}
+            >
+              <Pin className="h-4 w-4 mr-2" />
+              Pinned
+            </Button>
+          </div>
         </div>
-      </ScrollArea>
 
-      <div className="border-t p-4 bg-card shadow-soft">
-        <form onSubmit={handleSendMessage} className="flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              if (e.target.value) {
-                startTyping();
-              } else {
-                stopTyping();
-              }
-            }}
-            placeholder={`Message #${channel.name}`}
-            disabled={loading}
-            className="flex-1"
-          />
-          <Button
-            type="submit"
-            disabled={loading || !newMessage.trim()}
-            className="bg-gradient-primary hover:opacity-90 transition-opacity"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+        <ScrollArea className="flex-1" ref={scrollRef}>
+          <div className="space-y-1">
+            {messages.map((message) => (
+              <MessageItem
+                key={message.id}
+                message={message}
+                currentUserId={currentUserId || ""}
+                isAdmin={isAdmin}
+                threadReplyCount={threadReplyCounts[message.id] || 0}
+                onReply={(messageId) => setActiveThreadId(messageId)}
+                onPin={handlePinMessage}
+                onReact={handleReaction}
+                reactions={messageReactions[message.id] || []}
+              />
+            ))}
+            {typingUsers.length > 0 && (
+              <div className="px-4 py-2 text-sm text-muted-foreground italic">
+                {typingUsers.map(u => u.full_name || u.email).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+
+        <div className="border-t p-4 bg-card shadow-soft relative">
+          {showMentionAutocomplete && (
+            <MentionAutocomplete
+              users={channelMembers}
+              onSelect={handleMentionSelect}
+              searchQuery={mentionQuery}
+            />
+          )}
+          <form onSubmit={handleSendMessage}>
+            <Textarea
+              ref={textareaRef}
+              value={newMessage}
+              onChange={handleTextareaChange}
+              placeholder={`Message #${channel.name} (@ to mention)`}
+              disabled={loading}
+              className="min-h-[80px] resize-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e);
+                }
+              }}
+            />
+            <div className="flex justify-end mt-2">
+              <Button
+                type="submit"
+                disabled={loading || !newMessage.trim()}
+                className="bg-gradient-primary hover:opacity-90 transition-opacity"
+              >
+                Send
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
+
+      {activeThreadId && activeThreadMessage && (
+        <div className="w-96 border-l">
+          <ThreadPanel
+            parentMessage={activeThreadMessage}
+            currentUserId={currentUserId || ""}
+            isAdmin={isAdmin}
+            onClose={() => setActiveThreadId(null)}
+          />
+        </div>
+      )}
+
+      {showPinnedPanel && (
+        <div className="w-96 border-l">
+          <PinnedMessagesPanel
+            channelId={channelId || ""}
+            currentUserId={currentUserId || ""}
+            isAdmin={isAdmin}
+            onClose={() => setShowPinnedPanel(false)}
+            onJumpToMessage={(messageId) => {
+              // Scroll to message - simplified for now
+              setShowPinnedPanel(false);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };
