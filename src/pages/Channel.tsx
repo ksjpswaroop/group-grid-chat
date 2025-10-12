@@ -1,17 +1,21 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hash, Pin, X } from "lucide-react";
+import { Hash, Pin, X, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { getRealtimeManager } from "@/lib/realtime";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { offlineQueue } from "@/lib/offlineQueue";
+import { ChannelErrorBoundary } from "@/components/ChannelErrorBoundary";
 import MessageItem from "@/components/MessageItem";
 import ThreadPanel from "@/components/ThreadPanel";
 import PinnedMessagesPanel from "@/components/PinnedMessagesPanel";
 import MentionAutocomplete from "@/components/MentionAutocomplete";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Message {
   id: string;
@@ -70,6 +74,10 @@ const Channel = () => {
   const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
   const [threadReplyCounts, setThreadReplyCounts] = useState<Record<string, number>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Phase 6: Network status and offline support
+  const { isOnline } = useNetworkStatus();
+  const [queuedCount, setQueuedCount] = useState(0);
 
   useEffect(() => {
     if (channelId) {

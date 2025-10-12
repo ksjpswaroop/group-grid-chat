@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -41,7 +41,8 @@ interface MessageItemProps {
   }>;
 }
 
-export default function MessageItem({
+// Performance: Memoize component to prevent unnecessary re-renders
+const MessageItem = ({
   message,
   currentUserId,
   isAdmin,
@@ -52,7 +53,7 @@ export default function MessageItem({
   onDelete,
   onReact,
   reactions = [],
-}: MessageItemProps) {
+}: MessageItemProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const isOwnMessage = message.user_id === currentUserId;
   const canPin = isAdmin || isOwnMessage;
@@ -99,14 +100,17 @@ export default function MessageItem({
   };
 
   return (
-    <div
+    <article
+      id={`message-${message.id}`}
+      role="article"
+      aria-label={`Message from ${message.profiles?.full_name || 'Unknown user'}`}
       className="group py-2 px-4 hover:bg-muted/50 transition-colors"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="flex gap-3">
         <Avatar className="h-10 w-10 flex-shrink-0">
-          <AvatarImage src={message.profiles?.avatar_url} />
+          <AvatarImage src={message.profiles?.avatar_url} alt={`${message.profiles?.full_name}'s avatar`} />
           <AvatarFallback className="bg-primary text-primary-foreground">
             {getInitials(message.profiles?.full_name || "User")}
           </AvatarFallback>
@@ -117,14 +121,14 @@ export default function MessageItem({
             <span className="font-semibold text-foreground">
               {message.profiles?.full_name || "Unknown User"}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <time className="text-xs text-muted-foreground" dateTime={message.created_at}>
               {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
-            </span>
+            </time>
             {isEdited && (
               <span className="text-xs text-muted-foreground italic">(edited)</span>
             )}
             {message.is_pinned && (
-              <Pin className="h-3 w-3 text-muted-foreground" />
+              <Pin className="h-3 w-3 text-muted-foreground" aria-label="Pinned message" />
             )}
           </div>
 
@@ -133,10 +137,12 @@ export default function MessageItem({
           </div>
 
           {reactions.length > 0 && (
-            <ReactionsBar
-              reactions={reactions}
-              onReact={(emoji) => onReact(message.id, emoji)}
-            />
+            <div role="group" aria-label="Message reactions">
+              <ReactionsBar
+                reactions={reactions}
+                onReact={(emoji) => onReact(message.id, emoji)}
+              />
+            </div>
           )}
 
           {threadReplyCount > 0 && !message.parent_message_id && (
@@ -145,8 +151,9 @@ export default function MessageItem({
               size="sm"
               className="mt-2 text-primary hover:text-primary hover:bg-primary/10"
               onClick={() => onReply(message.id)}
+              aria-label={`View ${threadReplyCount} ${threadReplyCount === 1 ? "reply" : "replies"}`}
             >
-              <MessageSquare className="h-4 w-4 mr-1" />
+              <MessageSquare className="h-4 w-4 mr-1" aria-hidden="true" />
               {threadReplyCount} {threadReplyCount === 1 ? "reply" : "replies"}
             </Button>
           )}
@@ -159,13 +166,14 @@ export default function MessageItem({
               size="sm"
               className="h-8 w-8 p-0"
               onClick={() => onReply(message.id)}
+              aria-label="Reply to message"
             >
               <Reply className="h-4 w-4" />
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More options">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -196,6 +204,20 @@ export default function MessageItem({
           </div>
         )}
       </div>
-    </div>
+    </article>
   );
-}
+};
+
+// Performance: Export memoized version with custom comparison
+export default React.memo(MessageItem, (prevProps, nextProps) => {
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.message.updated_at === nextProps.message.updated_at &&
+    prevProps.message.is_pinned === nextProps.message.is_pinned &&
+    prevProps.threadReplyCount === nextProps.threadReplyCount &&
+    JSON.stringify(prevProps.reactions) === JSON.stringify(nextProps.reactions) &&
+    prevProps.currentUserId === nextProps.currentUserId &&
+    prevProps.isAdmin === nextProps.isAdmin
+  );
+});
