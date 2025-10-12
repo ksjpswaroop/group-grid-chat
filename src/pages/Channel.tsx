@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Hash, Paperclip } from "lucide-react";
+import { Send, Hash } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { getRealtimeManager } from "@/lib/realtime";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 
 interface Message {
   id: string;
@@ -34,6 +36,8 @@ const Channel = () => {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { typingUsers, startTyping, stopTyping } = useTypingIndicator(channelId || "");
+  const realtimeManager = getRealtimeManager();
 
   useEffect(() => {
     if (channelId) {
@@ -42,24 +46,20 @@ const Channel = () => {
       joinChannel();
       getCurrentUser();
 
-      const subscription = supabase
-        .channel(`channel:${channelId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "messages",
-            filter: `channel_id=eq.${channelId}`,
-          },
-          (payload) => {
-            loadMessages();
-          }
-        )
-        .subscribe();
+      realtimeManager.subscribeToChannel(`messages-${channelId}`, {
+        filter: {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `channel_id=eq.${channelId}`
+        },
+        onMessage: () => {
+          loadMessages();
+        }
+      });
 
       return () => {
-        subscription.unsubscribe();
+        realtimeManager.unsubscribeFromChannel(`messages-${channelId}`);
       };
     }
   }, [channelId]);
@@ -215,6 +215,11 @@ const Channel = () => {
               </div>
             </div>
           ))}
+          {typingUsers.length > 0 && (
+            <div className="text-sm text-muted-foreground italic">
+              {typingUsers.map(u => u.full_name || u.email).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+            </div>
+          )}
         </div>
       </ScrollArea>
 
@@ -222,7 +227,14 @@ const Channel = () => {
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <Input
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              if (e.target.value) {
+                startTyping();
+              } else {
+                stopTyping();
+              }
+            }}
             placeholder={`Message #${channel.name}`}
             disabled={loading}
             className="flex-1"
