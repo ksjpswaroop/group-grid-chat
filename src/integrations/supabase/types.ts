@@ -309,6 +309,7 @@ export type Database = {
         Row: {
           channel_id: string | null
           created_at: string | null
+          download_count: number | null
           file_name: string
           file_size: number | null
           file_type: string | null
@@ -319,6 +320,7 @@ export type Database = {
         Insert: {
           channel_id?: string | null
           created_at?: string | null
+          download_count?: number | null
           file_name: string
           file_size?: number | null
           file_type?: string | null
@@ -329,6 +331,7 @@ export type Database = {
         Update: {
           channel_id?: string | null
           created_at?: string | null
+          download_count?: number | null
           file_name?: string
           file_size?: number | null
           file_type?: string | null
@@ -555,6 +558,8 @@ export type Database = {
       }
       messages: {
         Row: {
+          audio_duration: number | null
+          audio_url: string | null
           channel_id: string | null
           content: string
           created_at: string | null
@@ -567,6 +572,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          audio_duration?: number | null
+          audio_url?: string | null
           channel_id?: string | null
           content: string
           created_at?: string | null
@@ -579,6 +586,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          audio_duration?: number | null
+          audio_url?: string | null
           channel_id?: string | null
           content?: string
           created_at?: string | null
@@ -650,6 +659,8 @@ export type Database = {
           full_name: string | null
           id: string
           password_change_required: boolean | null
+          password_reset_at: string | null
+          password_reset_by: string | null
           updated_at: string | null
         }
         Insert: {
@@ -659,6 +670,8 @@ export type Database = {
           full_name?: string | null
           id: string
           password_change_required?: boolean | null
+          password_reset_at?: string | null
+          password_reset_by?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -668,9 +681,19 @@ export type Database = {
           full_name?: string | null
           id?: string
           password_change_required?: boolean | null
+          password_reset_at?: string | null
+          password_reset_by?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_password_reset_by_fkey"
+            columns: ["password_reset_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scheduled_messages: {
         Row: {
@@ -866,6 +889,15 @@ export type Database = {
           user_ids: string[]
         }[]
       }
+      get_non_channel_members: {
+        Args: { p_channel_id: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+        }[]
+      }
       get_thread_reply_count: {
         Args: { parent_id: string }
         Returns: number
@@ -883,6 +915,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_download_count: {
+        Args: { file_id: string }
+        Returns: undefined
       }
       is_channel_member: {
         Args: { _channel_id: string; _user_id: string }
