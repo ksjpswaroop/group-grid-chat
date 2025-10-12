@@ -101,8 +101,8 @@ export const DirectMessagesList = ({ onNewDM }: DirectMessagesListProps) => {
   if (conversations.length === 0) {
     return (
       <div className="p-4 text-center">
-        <MessageSquare className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground mb-3">No direct messages yet</p>
+        <MessageSquare className="w-8 h-8 mx-auto mb-2 text-foreground/60" />
+        <p className="text-sm text-foreground/80 mb-3">No direct messages yet</p>
         <Button onClick={onNewDM} size="sm" variant="default">
           <Plus className="w-4 h-4 mr-2" />
           New Message
