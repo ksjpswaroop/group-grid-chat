@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { InviteUserDialog } from "@/components/InviteUserDialog";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
+import { ResetUserPasswordDialog } from "@/components/ResetUserPasswordDialog";
 
 interface User {
   id: string;
@@ -172,6 +173,7 @@ const Admin = () => {
         </div>
 
         <div className="flex gap-2">
+          <ResetUserPasswordDialog users={users} onPasswordReset={loadUsers} />
           <CreateUserDialog />
           <InviteUserDialog />
         </div>
