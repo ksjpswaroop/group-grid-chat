@@ -14,12 +14,13 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Hash, Plus, Settings, LogOut, MessageSquare, Users, Mail, HardDrive } from "lucide-react";
+import { Hash, Plus, Settings, LogOut, MessageSquare, Users, Mail, HardDrive, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { DirectMessagesList } from "./DirectMessagesList";
 import { NewDMDialog } from "./NewDMDialog";
+import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 
 interface Channel {
   id: string;
@@ -43,6 +44,7 @@ export function AppSidebar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [newDMOpen, setNewDMOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCount[]>([]);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
     loadChannels();
@@ -293,18 +295,30 @@ export function AppSidebar() {
             </div>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSignOut}
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="ml-2">Sign Out</span>
-        </Button>
+        <div className="space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShortcutsOpen(true)}
+            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <Keyboard className="h-4 w-4" />
+            <span className="ml-2">Keyboard Shortcuts</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSignOut}
+            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="ml-2">Sign Out</span>
+          </Button>
+        </div>
       </SidebarFooter>
 
       <NewDMDialog open={newDMOpen} onOpenChange={setNewDMOpen} />
+      <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </Sidebar>
   );
 }

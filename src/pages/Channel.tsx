@@ -632,7 +632,7 @@ const Channel = () => {
           </div>
         </div>
 
-        <ScrollArea className="flex-1" ref={scrollRef}>
+        <ScrollArea className="flex-1" ref={scrollRef} role="log" aria-label="Channel messages" aria-live="polite">
           <div className="space-y-1">
             {[...messages, ...optimisticMessages].map((message) => (
               <MessageItem
@@ -686,6 +686,9 @@ const Channel = () => {
               placeholder={`Message #${channel.name} (@ to mention)`}
               disabled={loading}
               className="min-h-[80px] resize-none"
+              data-composer
+              aria-label={`Message composer for ${channel.name}`}
+              aria-describedby="composer-help"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -693,6 +696,9 @@ const Channel = () => {
                 }
               }}
             />
+            <span id="composer-help" className="sr-only">
+              Press Enter to send, Shift+Enter for new line, @ to mention users
+            </span>
             <div className="flex justify-between items-center mt-2">
               <FileUpload
                 channelId={channelId || ""}

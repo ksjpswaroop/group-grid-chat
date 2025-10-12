@@ -7,6 +7,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { usePresenceUpdater } from "@/hooks/usePresenceUpdater";
 import { useDesktopNotifications } from "@/hooks/useDesktopNotifications";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -17,6 +18,9 @@ const Index = () => {
   
   // Enable desktop notifications
   useDesktopNotifications();
+  
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts();
 
   useEffect(() => {
     checkAuth();
@@ -69,10 +73,13 @@ const Index = () => {
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <main className="flex-1 flex flex-col">
-          <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+        <main className="flex-1 flex flex-col" role="main" aria-label="Main content">
+          <header 
+            className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10"
+            role="banner"
+          >
             <div className="flex items-center gap-4 px-6 py-3">
-              <SidebarTrigger className="lg:hidden" />
+              <SidebarTrigger className="lg:hidden" aria-label="Toggle sidebar" />
               <SearchBar />
               <NotificationBell />
             </div>
