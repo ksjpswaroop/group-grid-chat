@@ -14,7 +14,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Hash, Plus, Settings, LogOut, MessageSquare, Users } from "lucide-react";
+import { Hash, Plus, Settings, LogOut, MessageSquare, Users, Mail, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
@@ -234,8 +234,38 @@ export function AppSidebar() {
                           : "hover:bg-sidebar-accent/50"
                       }
                     >
-                      <Plus className="h-4 w-4" />
+                      <Hash className="h-4 w-4" />
                       <span>Manage Channels</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin/invitations"
+                      className={({ isActive }) =>
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "hover:bg-sidebar-accent/50"
+                      }
+                    >
+                      <Mail className="h-4 w-4" />
+                      <span>Invitations</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin/storage"
+                      className={({ isActive }) =>
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "hover:bg-sidebar-accent/50"
+                      }
+                    >
+                      <HardDrive className="h-4 w-4" />
+                      <span>Storage</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
