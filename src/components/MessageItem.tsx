@@ -149,12 +149,13 @@ const MessageItem = ({
             <Button
               variant="ghost"
               size="sm"
-              className="mt-2 text-primary hover:text-primary hover:bg-primary/10"
+              className="mt-2 text-primary hover:text-primary hover:bg-primary/10 gap-1"
               onClick={() => onReply(message.id)}
               aria-label={`View ${threadReplyCount} ${threadReplyCount === 1 ? "reply" : "replies"}`}
             >
-              <MessageSquare className="h-4 w-4 mr-1" aria-hidden="true" />
-              {threadReplyCount} {threadReplyCount === 1 ? "reply" : "replies"}
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
+              <span className="font-medium">{threadReplyCount}</span>
+              <span className="text-muted-foreground">{threadReplyCount === 1 ? "reply" : "replies"}</span>
             </Button>
           )}
         </div>

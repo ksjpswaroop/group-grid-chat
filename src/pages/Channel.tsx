@@ -95,6 +95,13 @@ const Channel = () => {
   const { isOnline } = useNetworkStatus();
   const [queuedCount, setQueuedCount] = useState(0);
   
+  useEffect(() => {
+    const unsubscribe = offlineQueue.subscribe(() => {
+      setQueuedCount(offlineQueue.getCount());
+    });
+    return unsubscribe;
+  }, []);
+  
   // Phase 7: Calls
   const { activeCall, startCall, endCall, loading: callLoading } = useCall(channelId);
   const [showPreflight, setShowPreflight] = useState(false);
@@ -146,10 +153,44 @@ const Channel = () => {
           }
         )
         .subscribe();
+      
+      // Subscribe to thread replies for notification badges
+      const threadsChannel = supabase
+        .channel(`threads-${channelId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `channel_id=eq.${channelId}`
+          },
+          (payload: any) => {
+            if (payload.new.parent_message_id) {
+              loadThreadReplyCounts();
+              // Show toast if it's a reply to a thread you're following
+              if (currentUserId) {
+                supabase
+                  .from('thread_followers')
+                  .select('id')
+                  .eq('thread_id', payload.new.parent_message_id)
+                  .eq('user_id', currentUserId)
+                  .maybeSingle()
+                  .then(({ data }) => {
+                    if (data && payload.new.user_id !== currentUserId) {
+                      toast.info('New reply in a thread you\'re following');
+                    }
+                  });
+              }
+            }
+          }
+        )
+        .subscribe();
 
       return () => {
         realtimeManager.unsubscribeFromChannel(`messages-${channelId}`);
         supabase.removeChannel(reactionsChannel);
+        supabase.removeChannel(threadsChannel);
       };
     }
   }, [channelId]);
@@ -610,6 +651,15 @@ const Channel = () => {
         </ScrollArea>
 
         <div className="border-t p-4 bg-card shadow-soft relative">
+          {!isOnline && (
+            <Alert className="mb-3">
+              <WifiOff className="h-4 w-4" />
+              <AlertDescription>
+                You're offline. Messages will be sent when connection is restored.
+                {queuedCount > 0 && ` (${queuedCount} queued)`}
+              </AlertDescription>
+            </Alert>
+          )}
           {showMentionAutocomplete && (
             <MentionAutocomplete
               users={channelMembers}
