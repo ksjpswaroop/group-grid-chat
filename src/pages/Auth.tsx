@@ -23,6 +23,22 @@ const Auth = () => {
     if (token) {
       validateInvite(token);
     }
+    
+    // One-time setup for admin user
+    const setupAdmin = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('setup-admin');
+        if (error) {
+          console.error('Setup error:', error);
+        } else {
+          console.log('Admin setup complete:', data);
+        }
+      } catch (err) {
+        console.error('Setup failed:', err);
+      }
+    };
+    
+    setupAdmin();
   }, [searchParams]);
 
   const validateInvite = async (token: string) => {
