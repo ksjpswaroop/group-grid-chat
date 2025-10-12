@@ -18,6 +18,8 @@ import { Hash, Plus, Settings, LogOut, MessageSquare, Users } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { DirectMessagesList } from "./DirectMessagesList";
+import { NewDMDialog } from "./NewDMDialog";
 
 interface Channel {
   id: string;
@@ -34,6 +36,7 @@ export function AppSidebar() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [newDMOpen, setNewDMOpen] = useState(false);
 
   useEffect(() => {
     loadChannels();
@@ -133,11 +136,28 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
 
-        {isAdmin && (
+      <SidebarGroup>
+        <div className="flex items-center justify-between px-2">
+          <SidebarGroupLabel>Direct Messages</SidebarGroupLabel>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setNewDMOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+        <SidebarGroupContent>
+          <DirectMessagesList onNewDM={() => setNewDMOpen(true)} />
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      {isAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-sidebar-foreground/70">
               Admin
@@ -208,6 +228,8 @@ export function AppSidebar() {
           <span className="ml-2">Sign Out</span>
         </Button>
       </SidebarFooter>
+
+      <NewDMDialog open={newDMOpen} onOpenChange={setNewDMOpen} />
     </Sidebar>
   );
 }

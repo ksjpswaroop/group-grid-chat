@@ -43,6 +43,38 @@ export type Database = {
           },
         ]
       }
+      channel_read_status: {
+        Row: {
+          channel_id: string
+          id: string
+          last_read: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          id?: string
+          last_read?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          id?: string
+          last_read?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_read_status_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           created_at: string | null
@@ -77,6 +109,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string | null
+          dm_id: string | null
           id: string
           read_at: string | null
           recipient_id: string
@@ -85,6 +118,7 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string | null
+          dm_id?: string | null
           id?: string
           read_at?: string | null
           recipient_id: string
@@ -93,12 +127,68 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string | null
+          dm_id?: string | null
           id?: string
           read_at?: string | null
           recipient_id?: string
           sender_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "direct_messages_dm_id_fkey"
+            columns: ["dm_id"]
+            isOneToOne: false
+            referencedRelation: "dm_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dm_conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string | null
+        }
         Relationships: []
+      }
+      dm_participants: {
+        Row: {
+          dm_id: string
+          id: string
+          joined_at: string | null
+          user_id: string
+        }
+        Insert: {
+          dm_id: string
+          id?: string
+          joined_at?: string | null
+          user_id: string
+        }
+        Update: {
+          dm_id?: string
+          id?: string
+          joined_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dm_participants_dm_id_fkey"
+            columns: ["dm_id"]
+            isOneToOne: false
+            referencedRelation: "dm_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       file_uploads: {
         Row: {
@@ -209,6 +299,41 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          channel_id: string | null
+          created_at: string | null
+          id: string
+          setting: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string | null
+          id?: string
+          setting?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string | null
+          id?: string
+          setting?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -312,12 +437,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_unread_count: {
+        Args: { _user_id: string }
+        Returns: {
+          channel_id: string
+          unread_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      is_channel_member: {
+        Args: { _channel_id: string; _user_id: string }
+        Returns: boolean
+      }
+      search_messages: {
+        Args: {
+          channel_filter?: string
+          limit_count?: number
+          search_query: string
+        }
+        Returns: {
+          channel_id: string
+          content: string
+          created_at: string
+          id: string
+          rank: number
+          user_id: string
+        }[]
       }
     }
     Enums: {
