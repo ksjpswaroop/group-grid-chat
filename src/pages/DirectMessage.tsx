@@ -1,29 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PresenceDot } from '@/components/PresenceDot';
 import { usePresence } from '@/hooks/usePresence';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
-import { Phone, Video, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
+import { Phone, Video, ArrowLeft, Smile } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useCall } from '@/hooks/useCall';
 import CallPreflight from '@/components/calls/CallPreflight';
 import CallInterface from '@/components/calls/CallInterface';
+import MessageItem from '@/components/MessageItem';
+import ReactionsBar from '@/components/ReactionsBar';
+import { FileUpload } from '@/components/FileUpload';
 
 interface DirectMessage {
   id: string;
   content: string;
   sender_id: string;
   created_at: string;
+  updated_at: string;
+  user_id?: string;
+  is_pinned?: boolean;
   sender: {
     full_name: string;
     email: string;
   };
+}
+
+interface Reaction {
+  emoji: string;
+  count: number;
+  user_ids: string[];
+  current_user_reacted: boolean;
 }
 
 interface OtherUser {
@@ -41,6 +54,9 @@ export default function DirectMessage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [dmConversationId, setDmConversationId] = useState<string | null>(null);
+  const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { getPresence } = usePresence(userId ? [userId] : []);
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(`dm-${userId}`);
@@ -76,11 +92,63 @@ export default function DirectMessage() {
         }
       )
       .subscribe();
+    
+    // Subscribe to reactions
+    const reactionsChannel = supabase
+      .channel(`dm-reactions-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_reactions'
+        },
+        () => {
+          loadReactionsForMessages();
+        }
+      )
+      .subscribe();
 
     return () => {
       channel.unsubscribe();
+      supabase.removeChannel(reactionsChannel);
     };
   }, [userId]);
+  
+  useEffect(() => {
+    if (messages.length > 0) {
+      loadReactionsForMessages();
+    }
+  }, [messages]);
+  
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+  
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      const scrollElement = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollElement) {
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+      }
+    }
+  };
+  
+  const loadReactionsForMessages = async () => {
+    const messageIds = messages.map(m => m.id);
+    if (messageIds.length === 0) return;
+
+    const reactions: Record<string, Reaction[]> = {};
+    
+    for (const messageId of messageIds) {
+      const { data } = await supabase.rpc('get_message_reactions_summary', { msg_id: messageId });
+      if (data && data.length > 0) {
+        reactions[messageId] = data as Reaction[];
+      }
+    }
+    
+    setMessageReactions(reactions);
+  };
 
   const loadOrCreateDmConversation = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -167,6 +235,7 @@ export default function DirectMessage() {
 
     const enrichedMessages = data.map(msg => ({
       ...msg,
+      updated_at: msg.created_at, // DMs don't have separate updated_at
       sender: profilesMap.get(msg.sender_id) || { full_name: 'Unknown', email: '' }
     }));
 
@@ -202,6 +271,39 @@ export default function DirectMessage() {
 
   const handleTyping = () => {
     startTyping();
+  };
+  
+  const handleReaction = async (messageId: string, emoji: string) => {
+    if (!currentUserId) return;
+
+    const currentReactions = messageReactions[messageId] || [];
+    const existingReaction = currentReactions.find(
+      r => r.emoji === emoji && r.current_user_reacted
+    );
+
+    if (existingReaction) {
+      await supabase
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", messageId)
+        .eq("user_id", currentUserId)
+        .eq("emoji", emoji);
+    } else {
+      await supabase
+        .from("message_reactions")
+        .insert({
+          message_id: messageId,
+          user_id: currentUserId,
+          emoji: emoji
+        });
+    }
+
+    loadReactionsForMessages();
+  };
+  
+  const handleFileUploaded = (fileUrl: string, fileName: string, fileType: string) => {
+    const fileMessage = `📎 [${fileName}](${fileUrl})`;
+    setNewMessage(fileMessage);
   };
 
   if (!otherUser) {
@@ -282,68 +384,73 @@ export default function DirectMessage() {
       </header>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-6">
-        <div className="space-y-4 max-w-4xl mx-auto">
-          {messages.map((message) => {
-            const isOwnMessage = message.sender_id === currentUserId;
-            
-            return (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : ''}`}
-              >
-                {!isOwnMessage && (
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
-                )}
-                <div className={`flex flex-col ${isOwnMessage ? 'items-end' : ''}`}>
-                  <div
-                    className={`rounded-lg px-4 py-2 max-w-[70%] ${
-                      isOwnMessage
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary'
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap break-words">
-                      {message.content}
-                    </p>
-                  </div>
-                  <span className="text-xs text-muted-foreground mt-1">
-                    {format(new Date(message.created_at), 'h:mm a')}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+      <ScrollArea className="flex-1" ref={scrollRef}>
+        <div className="space-y-1 p-4">
+          {messages.map((message) => (
+            <MessageItem
+              key={message.id}
+              message={{
+                ...message,
+                channel_id: dmConversationId || '',
+                user_id: message.sender_id,
+                updated_at: message.updated_at || message.created_at,
+                is_pinned: message.is_pinned || false,
+                profiles: {
+                  full_name: message.sender.full_name,
+                  avatar_url: undefined
+                }
+              }}
+              currentUserId={currentUserId || ""}
+              isAdmin={false}
+              onReply={() => {}}
+              onPin={() => {}}
+              onReact={handleReaction}
+              reactions={messageReactions[message.id] || []}
+            />
+          ))}
           
           {typingUsers.length > 0 && (
-            <div className="flex gap-3 items-center text-sm text-muted-foreground">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-              <span>{otherUser.full_name} is typing...</span>
+            <div className="px-4 py-2 text-sm text-muted-foreground italic">
+              {otherUser.full_name} is typing...
             </div>
           )}
         </div>
       </ScrollArea>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} className="border-t p-4">
-        <div className="max-w-4xl mx-auto flex gap-2">
-          <Input
+      <form onSubmit={handleSendMessage} className="border-t p-4 bg-card">
+        <div className="space-y-2">
+          <Textarea
+            ref={textareaRef}
             value={newMessage}
             onChange={(e) => {
               setNewMessage(e.target.value);
               handleTyping();
             }}
             placeholder={`Message ${otherUser.full_name}`}
-            className="flex-1"
+            className="min-h-[80px] resize-none"
             disabled={sending}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage(e);
+              }
+            }}
           />
-          <Button type="submit" disabled={!newMessage.trim() || sending}>
-            Send
-          </Button>
+          <div className="flex justify-between items-center">
+            <FileUpload
+              channelId=""
+              onFileUploaded={handleFileUploaded}
+              disabled={sending}
+            />
+            <Button 
+              type="submit" 
+              disabled={!newMessage.trim() || sending}
+              className="bg-gradient-primary hover:opacity-90"
+            >
+              {sending ? 'Sending...' : 'Send'}
+            </Button>
+          </div>
         </div>
       </form>
       
