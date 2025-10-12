@@ -27,6 +27,11 @@ interface Channel {
   is_private: boolean;
 }
 
+interface UnreadCount {
+  channel_id: string;
+  unread_count: number;
+}
+
 interface Profile {
   full_name: string | null;
   email: string;
@@ -37,11 +42,13 @@ export function AppSidebar() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [newDMOpen, setNewDMOpen] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCount[]>([]);
 
   useEffect(() => {
     loadChannels();
     loadProfile();
     checkAdminStatus();
+    loadUnreadCounts();
 
     const channelSubscription = supabase
       .channel("channels-changes")
@@ -54,8 +61,20 @@ export function AppSidebar() {
       )
       .subscribe();
 
+    const messageSubscription = supabase
+      .channel("message-unread")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        () => {
+          loadUnreadCounts();
+        }
+      )
+      .subscribe();
+
     return () => {
       channelSubscription.unsubscribe();
+      messageSubscription.unsubscribe();
     };
   }, []);
 
@@ -92,6 +111,24 @@ export function AppSidebar() {
     }
   };
 
+  const loadUnreadCounts = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase.rpc('get_unread_count', {
+      _user_id: user.id
+    });
+
+    if (data) {
+      setUnreadCounts(data as UnreadCount[]);
+    }
+  };
+
+  const getUnreadCount = (channelId: string): number => {
+    const count = unreadCounts.find(c => c.channel_id === channelId);
+    return count ? Number(count.unread_count) : 0;
+  };
+
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -119,23 +156,31 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {channels.map((channel) => (
-                <SidebarMenuItem key={channel.id}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={`/channel/${channel.id}`}
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "hover:bg-sidebar-accent/50"
-                      }
-                    >
-                      <Hash className="h-4 w-4" />
-                      <span>{channel.name}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {channels.map((channel) => {
+                const unreadCount = getUnreadCount(channel.id);
+                return (
+                  <SidebarMenuItem key={channel.id}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={`/channel/${channel.id}`}
+                        className={({ isActive }) =>
+                          isActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            : "hover:bg-sidebar-accent/50"
+                        }
+                      >
+                        <Hash className="h-4 w-4" />
+                        <span className="flex-1">{channel.name}</span>
+                        {unreadCount > 0 && (
+                          <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

@@ -19,6 +19,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCall } from "@/hooks/useCall";
 import CallPreflight from "@/components/calls/CallPreflight";
 import CallInterface from "@/components/calls/CallInterface";
+import { FileUpload } from "@/components/FileUpload";
+import { FilePreview } from "@/components/FilePreview";
+import { EditMessageDialog } from "@/components/EditMessageDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Message {
   id: string;
@@ -87,6 +100,13 @@ const Channel = () => {
   const [showPreflight, setShowPreflight] = useState(false);
   const [showCallInterface, setShowCallInterface] = useState(false);
   const [callDevices, setCallDevices] = useState<any>(null);
+  
+  // Phase 1 completion: File upload, edit/delete, optimistic UI
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
 
   useEffect(() => {
     if (channelId) {
@@ -271,17 +291,40 @@ const Channel = () => {
     if (!newMessage.trim() || loading) return;
 
     setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error("Not authenticated");
+    
+    // Optimistic UI: Add message immediately
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`,
+      content: newMessage.trim(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      user_id: user.id,
+      channel_id: channelId!,
+      is_pinned: false,
+      profiles: {
+        full_name: profile?.full_name || 'You',
+        avatar_url: profile?.avatar_url
+      }
+    };
+    
+    setOptimisticMessages([...optimisticMessages, optimisticMessage]);
+    const messageContent = newMessage.trim();
+    setNewMessage("");
+    stopTyping();
+
+    try {
       const { data: message, error } = await supabase
         .from("messages")
         .insert({
           channel_id: channelId,
           user_id: user.id,
-          content: newMessage.trim(),
+          content: messageContent,
         })
         .select()
         .single();
@@ -289,7 +332,7 @@ const Channel = () => {
       if (error) throw error;
 
       // Create mentions
-      const mentionedUserIds = parseMentions(newMessage);
+      const mentionedUserIds = parseMentions(messageContent);
       if (mentionedUserIds.length > 0 && message) {
         await supabase
           .from("mentions")
@@ -301,12 +344,84 @@ const Channel = () => {
           );
       }
 
-      setNewMessage("");
-      stopTyping();
+      // Remove optimistic message
+      setOptimisticMessages(optimisticMessages.filter(m => m.id !== optimisticMessage.id));
+      
+      // Mark channel as read
+      await supabase
+        .from('channel_read_status')
+        .upsert({
+          user_id: user.id,
+          channel_id: channelId,
+          last_read: new Date().toISOString()
+        });
     } catch (error: any) {
       toast.error(error.message);
+      setOptimisticMessages(optimisticMessages.filter(m => m.id !== optimisticMessage.id));
+      setNewMessage(messageContent); // Restore message
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditMessage = async (content: string) => {
+    if (!editingMessageId) return;
+
+    const { error } = await supabase
+      .from("messages")
+      .update({
+        content,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", editingMessageId);
+
+    if (error) {
+      toast.error("Failed to edit message");
+    } else {
+      toast.success("Message updated");
+      loadMessages();
+      setEditingMessageId(null);
+    }
+  };
+
+  const handleDeleteMessage = async () => {
+    if (!deletingMessageId) return;
+
+    const { error } = await supabase
+      .from("messages")
+      .delete()
+      .eq("id", deletingMessageId);
+
+    if (error) {
+      toast.error("Failed to delete message");
+    } else {
+      toast.success("Message deleted");
+      loadMessages();
+      setDeletingMessageId(null);
+    }
+  };
+
+  const handleFileUploaded = (fileUrl: string, fileName: string, fileType: string) => {
+    // Add file as a message
+    const fileMessage = `📎 [${fileName}](${fileUrl})`;
+    setNewMessage(fileMessage);
+  };
+
+  const [profile, setProfile] = useState<{ full_name: string; avatar_url?: string } | null>(null);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url")
+        .eq("id", user.id)
+        .single();
+      if (data) setProfile(data);
     }
   };
 
@@ -467,7 +582,7 @@ const Channel = () => {
 
         <ScrollArea className="flex-1" ref={scrollRef}>
           <div className="space-y-1">
-            {messages.map((message) => (
+            {[...messages, ...optimisticMessages].map((message) => (
               <MessageItem
                 key={message.id}
                 message={message}
@@ -476,6 +591,12 @@ const Channel = () => {
                 threadReplyCount={threadReplyCounts[message.id] || 0}
                 onReply={(messageId) => setActiveThreadId(messageId)}
                 onPin={handlePinMessage}
+                onEdit={(messageId) => {
+                  setEditingMessageId(messageId);
+                  const msg = messages.find(m => m.id === messageId);
+                  setEditingContent(msg?.content || "");
+                }}
+                onDelete={(messageId) => setDeletingMessageId(messageId)}
                 onReact={handleReaction}
                 reactions={messageReactions[message.id] || []}
               />
@@ -496,7 +617,7 @@ const Channel = () => {
               searchQuery={mentionQuery}
             />
           )}
-          <form onSubmit={handleSendMessage}>
+          <form onSubmit={handleSendMessage} className="space-y-2">
             <Textarea
               ref={textareaRef}
               value={newMessage}
@@ -511,7 +632,12 @@ const Channel = () => {
                 }
               }}
             />
-            <div className="flex justify-end mt-2">
+            <div className="flex justify-between items-center mt-2">
+              <FileUpload
+                channelId={channelId || ""}
+                onFileUploaded={handleFileUploaded}
+                disabled={loading}
+              />
               <Button
                 type="submit"
                 disabled={loading || !newMessage.trim()}
@@ -577,6 +703,41 @@ const Channel = () => {
             }}
           />
         </div>
+      )}
+
+      {/* Edit Message Dialog */}
+      <EditMessageDialog
+        open={!!editingMessageId}
+        onClose={() => setEditingMessageId(null)}
+        onSave={handleEditMessage}
+        initialContent={editingContent}
+      />
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deletingMessageId} onOpenChange={() => setDeletingMessageId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Message</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this message? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteMessage}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* File Preview */}
+      {previewFile && (
+        <FilePreview
+          open={!!previewFile}
+          onClose={() => setPreviewFile(null)}
+          fileUrl={previewFile.url}
+          fileName={previewFile.name}
+          fileType={previewFile.type}
+        />
       )}
     </div>
   );
