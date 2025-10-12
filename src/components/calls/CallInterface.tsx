@@ -3,12 +3,15 @@ import {
   LiveKitRoom,
   VideoConference,
   RoomAudioRenderer,
+  useConnectionState,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
-import { Room } from 'livekit-client';
+import { Room, ConnectionState } from 'livekit-client';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, Wifi, WifiOff } from 'lucide-react';
 
 interface CallInterfaceProps {
   callId: string;
@@ -31,6 +34,7 @@ export default function CallInterface({
   const [serverUrl, setServerUrl] = useState<string>('');
   const [room, setRoom] = useState<Room>();
   const [loading, setLoading] = useState(true);
+  const [isHost, setIsHost] = useState(false);
 
   useEffect(() => {
     fetchToken();
@@ -44,6 +48,19 @@ export default function CallInterface({
   const fetchToken = async () => {
     try {
       setLoading(true);
+      
+      // Check if current user is the host
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: call } = await supabase
+          .from('calls')
+          .select('started_by')
+          .eq('id', callId)
+          .single();
+        
+        setIsHost(call?.started_by === user.id);
+      }
+      
       const { data, error } = await supabase.functions.invoke('create-livekit-token', {
         body: { roomName, callId },
       });
@@ -118,7 +135,8 @@ export default function CallInterface({
           connect={true}
           onDisconnected={handleDisconnect}
           onConnected={() => {
-            console.log('Connected to room');
+            console.log('Connected to room:', roomName);
+            toast.success('Connected to call');
           }}
           options={{
             audioCaptureDefaults: {
@@ -130,6 +148,8 @@ export default function CallInterface({
             videoCaptureDefaults: {
               deviceId: videoDeviceId,
             },
+            adaptiveStream: true,
+            dynacast: true,
           }}
         >
           <VideoConference />
