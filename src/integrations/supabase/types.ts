@@ -680,6 +680,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_view_channel: {
+        Args: { _channel_id: string; _user_id: string }
+        Returns: boolean
+      }
       get_message_reactions_summary: {
         Args: { msg_id: string }
         Returns: {
