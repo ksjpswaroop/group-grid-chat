@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hash, Pin, X, WifiOff, Phone, Settings } from "lucide-react";
+import { Hash, Pin, X, WifiOff, Phone, Settings, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { getRealtimeManager } from "@/lib/realtime";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -23,6 +23,9 @@ import { FileUpload } from "@/components/FileUpload";
 import { FilePreview } from "@/components/FilePreview";
 import { EditMessageDialog } from "@/components/EditMessageDialog";
 import { NotificationPreferences } from "@/components/NotificationPreferences";
+import { ScheduleMessageDialog } from "@/components/ScheduleMessageDialog";
+import { ScheduledMessagesPanel } from "@/components/ScheduledMessagesPanel";
+import { TemplatePickerPopover } from "@/components/TemplatePickerPopover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,6 +121,10 @@ const Channel = () => {
   
   // Phase 3: Notification preferences
   const [showNotificationPrefs, setShowNotificationPrefs] = useState(false);
+  
+  // Phase 7: Enhanced Collaboration
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [showScheduledPanel, setShowScheduledPanel] = useState(false);
 
   useEffect(() => {
     if (channelId) {
@@ -700,11 +707,35 @@ const Channel = () => {
               Press Enter to send, Shift+Enter for new line, @ to mention users
             </span>
             <div className="flex justify-between items-center mt-2">
-              <FileUpload
-                channelId={channelId || ""}
-                onFileUploaded={handleFileUploaded}
-                disabled={loading}
-              />
+              <div className="flex items-center gap-1">
+                <FileUpload
+                  channelId={channelId || ""}
+                  onFileUploaded={handleFileUploaded}
+                  disabled={loading}
+                />
+                <TemplatePickerPopover
+                  onSelect={(content) => {
+                    setNewMessage(content);
+                    textareaRef.current?.focus();
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  title="Schedule message"
+                  onClick={() => {
+                    if (newMessage.trim()) {
+                      setShowScheduleDialog(true);
+                    } else {
+                      toast.error('Write a message first');
+                    }
+                  }}
+                  disabled={loading || !newMessage.trim()}
+                >
+                  <Clock className="h-4 w-4" />
+                </Button>
+              </div>
               <Button
                 type="submit"
                 disabled={loading || !newMessage.trim()}
@@ -765,10 +796,15 @@ const Channel = () => {
             isAdmin={isAdmin}
             onClose={() => setShowPinnedPanel(false)}
             onJumpToMessage={(messageId) => {
-              // Scroll to message - simplified for now
               setShowPinnedPanel(false);
             }}
           />
+        </div>
+      )}
+
+      {showScheduledPanel && (
+        <div className="w-96 border-l">
+          <ScheduledMessagesPanel onClose={() => setShowScheduledPanel(false)} />
         </div>
       )}
 
@@ -812,6 +848,18 @@ const Channel = () => {
         channelId={channelId || ''}
         open={showNotificationPrefs}
         onOpenChange={setShowNotificationPrefs}
+      />
+
+      {/* Schedule Message Dialog */}
+      <ScheduleMessageDialog
+        open={showScheduleDialog}
+        onClose={() => setShowScheduleDialog(false)}
+        channelId={channelId || ""}
+        content={newMessage}
+        onScheduled={() => {
+          setNewMessage("");
+          setShowScheduleDialog(false);
+        }}
       />
     </div>
   );

@@ -178,6 +178,8 @@ export type Database = {
       }
       channels: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           created_at: string | null
           created_by: string | null
           description: string | null
@@ -187,6 +189,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           created_at?: string | null
           created_by?: string | null
           description?: string | null
@@ -196,6 +200,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           created_at?: string | null
           created_by?: string | null
           description?: string | null
@@ -204,7 +210,15 @@ export type Database = {
           name?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "channels_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       direct_messages: {
         Row: {
@@ -424,6 +438,45 @@ export type Database = {
           },
         ]
       }
+      message_edit_history: {
+        Row: {
+          content: string
+          edited_at: string | null
+          edited_by: string
+          id: string
+          message_id: string
+        }
+        Insert: {
+          content: string
+          edited_at?: string | null
+          edited_by: string
+          id?: string
+          message_id: string
+        }
+        Update: {
+          content?: string
+          edited_at?: string | null
+          edited_by?: string
+          id?: string
+          message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_edit_history_edited_by_fkey"
+            columns: ["edited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_edit_history_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           created_at: string | null
@@ -452,6 +505,50 @@ export type Database = {
             columns: ["message_id"]
             isOneToOne: false
             referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_templates: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string | null
+          id: string
+          is_shared: boolean | null
+          name: string
+          updated_at: string | null
+          usage_count: number | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          is_shared?: boolean | null
+          name: string
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_shared?: boolean | null
+          name?: string
+          updated_at?: string | null
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -575,6 +672,57 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_messages: {
+        Row: {
+          cancelled_at: string | null
+          channel_id: string
+          content: string
+          created_at: string | null
+          id: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          channel_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          channel_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       thread_followers: {
         Row: {
           created_at: string | null
@@ -680,6 +828,35 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      advanced_search_messages: {
+        Args: {
+          channel_filter?: string
+          date_from?: string
+          date_to?: string
+          has_attachments?: boolean
+          limit_count?: number
+          search_query: string
+          user_filter?: string
+        }
+        Returns: {
+          channel_id: string
+          content: string
+          created_at: string
+          id: string
+          rank: number
+          user_id: string
+        }[]
+      }
+      get_message_edit_history: {
+        Args: { msg_id: string }
+        Returns: {
+          content: string
+          edited_at: string
+          edited_by: string
+          editor_name: string
+          id: string
+        }[]
+      }
       get_message_reactions_summary: {
         Args: { msg_id: string }
         Returns: {

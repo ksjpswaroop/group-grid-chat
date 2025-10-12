@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Reply, Pin, Edit, Trash2, MessageSquare } from "lucide-react";
+import { MoreHorizontal, Reply, Pin, Edit, Trash2, MessageSquare, History } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import ReactionsBar from "./ReactionsBar";
+import { MessageEditHistory } from "./MessageEditHistory";
 
 interface Message {
   id: string;
@@ -55,6 +56,7 @@ const MessageItem = ({
   reactions = [],
 }: MessageItemProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [showEditHistory, setShowEditHistory] = useState(false);
   const isOwnMessage = message.user_id === currentUserId;
   const canPin = isAdmin || isOwnMessage;
   const isEdited = message.updated_at !== message.created_at;
@@ -179,6 +181,12 @@ const MessageItem = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {isEdited && (
+                  <DropdownMenuItem onClick={() => setShowEditHistory(true)}>
+                    <History className="h-4 w-4 mr-2" />
+                    View edit history
+                  </DropdownMenuItem>
+                )}
                 {canPin && (
                   <DropdownMenuItem onClick={() => onPin(message.id)}>
                     <Pin className="h-4 w-4 mr-2" />
@@ -205,6 +213,12 @@ const MessageItem = ({
           </div>
         )}
       </div>
+
+      <MessageEditHistory
+        messageId={showEditHistory ? message.id : null}
+        open={showEditHistory}
+        onClose={() => setShowEditHistory(false)}
+      />
     </article>
   );
 };

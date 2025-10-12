@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,6 +7,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface SearchResult {
   id: string;
@@ -25,6 +30,11 @@ export const SearchBar = () => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [hasAttachments, setHasAttachments] = useState<boolean | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -46,9 +56,13 @@ export const SearchBar = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('search_messages', {
+      const { data, error } = await supabase.rpc('advanced_search_messages', {
         search_query: searchQuery,
-        channel_filter: null,
+        channel_filter: selectedChannel || null,
+        user_filter: selectedUser || null,
+        has_attachments: hasAttachments,
+        date_from: dateFrom ? new Date(dateFrom).toISOString() : null,
+        date_to: dateTo ? new Date(dateTo).toISOString() : null,
         limit_count: 50
       });
 
@@ -91,7 +105,7 @@ export const SearchBar = () => {
     }, 300);
 
     return () => clearTimeout(debounce);
-  }, [query, performSearch]);
+  }, [query, performSearch, selectedChannel, selectedUser, hasAttachments, dateFrom, dateTo]);
 
   const handleResultClick = (result: SearchResult) => {
     navigate(`/channel/${result.channel_id}`);
@@ -118,15 +132,70 @@ export const SearchBar = () => {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                className="pl-9"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                autoFocus
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search messages..."
+                  className="pl-9"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Filter className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Advanced Filters</h4>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="attachments">Has attachments</Label>
+                      <Switch
+                        id="attachments"
+                        checked={hasAttachments === true}
+                        onCheckedChange={(checked) => setHasAttachments(checked ? true : null)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="date-from">Date from</Label>
+                      <Input
+                        id="date-from"
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="date-to">Date to</Label>
+                      <Input
+                        id="date-to"
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setHasAttachments(null);
+                        setSelectedChannel(null);
+                        setSelectedUser(null);
+                        setDateFrom('');
+                        setDateTo('');
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <Tabs defaultValue="messages" className="w-full">
