@@ -84,6 +84,22 @@ const Auth = () => {
         if (error) throw error;
 
         toast.success("Welcome back!");
+
+        // Check if password change is required
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("password_change_required")
+            .eq("id", user.id)
+            .single();
+
+          if (profile?.password_change_required) {
+            navigate("/change-password");
+            return;
+          }
+        }
+
         navigate("/");
       }
     } catch (error: any) {

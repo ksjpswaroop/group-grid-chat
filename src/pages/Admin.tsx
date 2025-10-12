@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { InviteUserDialog } from "@/components/InviteUserDialog";
+import { CreateUserDialog } from "@/components/CreateUserDialog";
 
 interface User {
   id: string;
@@ -107,7 +108,10 @@ const Admin = () => {
           </div>
         </div>
 
-        <InviteUserDialog />
+        <div className="flex gap-2">
+          <CreateUserDialog />
+          <InviteUserDialog />
+        </div>
       </div>
 
       <Card className="p-6 shadow-medium">

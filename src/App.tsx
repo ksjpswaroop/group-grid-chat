@@ -11,6 +11,7 @@ import Channel from "./pages/Channel";
 import DirectMessage from "./pages/DirectMessage";
 import Admin from "./pages/Admin";
 import AdminChannels from "./pages/AdminChannels";
+import ChangePassword from "./pages/ChangePassword";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="admin/channels" element={<AdminChannels />} />
             </Route>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/change-password" element={<ChangePassword />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
