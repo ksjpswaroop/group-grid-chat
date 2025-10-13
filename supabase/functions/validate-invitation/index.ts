@@ -67,12 +67,12 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error validating invitation:', {
+    console.error('Validation error:', {
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     });
     return new Response(
-      JSON.stringify({ error: 'Unable to validate invitation. Please try again.' }),
+      JSON.stringify({ valid: false, message: 'Unable to validate invitation. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

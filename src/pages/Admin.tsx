@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,8 +29,10 @@ interface User {
 }
 
 const Admin = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [livekitConfig, setLivekitConfig] = useState({
     api_url: '',
     api_key: '',
@@ -39,24 +42,33 @@ const Admin = () => {
 
   useEffect(() => {
     checkAdminAccess();
-    loadUsers();
-    loadLivekitConfig();
   }, []);
 
   const checkAdminAccess = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      
-      if (!data) {
-        toast.error("Access denied. Admin only.");
-      }
+    
+    if (!user) {
+      toast.error("Access denied. Please sign in.");
+      navigate('/auth');
+      return;
     }
+
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    
+    if (!data) {
+      toast.error("Access denied. Admin only.");
+      navigate('/');
+      return;
+    }
+    
+    setIsAdmin(true);
+    loadUsers();
+    loadLivekitConfig();
   };
 
   const loadUsers = async () => {
@@ -158,6 +170,18 @@ const Admin = () => {
       toast.error(error.message);
     }
   };
+
+  if (isAdmin === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Verifying access...</p>
+      </div>
+    );
+  }
+
+  if (isAdmin === false) {
+    return null;
+  }
 
   return (
     <div className="p-6 space-y-6">
