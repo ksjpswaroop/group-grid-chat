@@ -17,6 +17,7 @@ import CallInterface from '@/components/calls/CallInterface';
 import MessageItem from '@/components/MessageItem';
 import ReactionsBar from '@/components/ReactionsBar';
 import { FileUpload } from '@/components/FileUpload';
+import { AudioRecorder } from '@/components/AudioRecorder';
 
 interface DirectMessage {
   id: string;
@@ -26,6 +27,8 @@ interface DirectMessage {
   updated_at: string;
   user_id?: string;
   is_pinned?: boolean;
+  audio_url?: string | null;
+  audio_duration?: number | null;
   sender: {
     full_name: string;
     email: string;
@@ -64,6 +67,7 @@ export default function DirectMessage() {
   const [showPreflight, setShowPreflight] = useState(false);
   const [showCallInterface, setShowCallInterface] = useState(false);
   const [callDevices, setCallDevices] = useState<any>(null);
+  const [showAudioRecorder, setShowAudioRecorder] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -438,19 +442,73 @@ export default function DirectMessage() {
             }}
           />
           <div className="flex justify-between items-center">
-            <FileUpload
-              channelId=""
-              onFileUploaded={handleFileUploaded}
-              disabled={sending}
-            />
-            <Button 
-              type="submit" 
-              disabled={!newMessage.trim() || sending}
-              className="bg-gradient-primary hover:opacity-90"
-            >
-              {sending ? 'Sending...' : 'Send'}
-            </Button>
+            <div className="flex items-center gap-1">
+              <FileUpload
+                channelId=""
+                onFileUploaded={handleFileUploaded}
+                disabled={sending}
+              />
+              {!showAudioRecorder && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  title="Record audio"
+                  onClick={() => setShowAudioRecorder(true)}
+                  disabled={sending}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                </Button>
+              )}
+            </div>
+            {!showAudioRecorder && (
+              <Button 
+                type="submit" 
+                disabled={!newMessage.trim() || sending}
+                className="bg-gradient-primary hover:opacity-90"
+              >
+                {sending ? 'Sending...' : 'Send'}
+              </Button>
+            )}
           </div>
+          {showAudioRecorder && (
+            <div className="mt-2">
+              <AudioRecorder
+                onRecordingComplete={async (audioBlob, duration) => {
+                  if (!currentUserId || !userId) return;
+
+                  const fileName = `audio/${currentUserId}/dm/${Date.now()}.webm`;
+                  const { error: uploadError } = await supabase.storage
+                    .from('team-files')
+                    .upload(fileName, audioBlob);
+
+                  if (uploadError) {
+                    toast.error('Failed to upload audio');
+                    return;
+                  }
+
+                  const { data: { publicUrl } } = supabase.storage
+                    .from('team-files')
+                    .getPublicUrl(fileName);
+                  
+                  await supabase.from('direct_messages').insert({
+                    sender_id: currentUserId,
+                    recipient_id: userId,
+                    dm_id: dmConversationId,
+                    content: '🎤 Voice message',
+                    audio_url: publicUrl,
+                    audio_duration: duration
+                  });
+
+                  setShowAudioRecorder(false);
+                  toast.success('Voice message sent');
+                }}
+                onCancel={() => setShowAudioRecorder(false)}
+              />
+            </div>
+          )}
         </div>
       </form>
       

@@ -6,6 +6,7 @@ import { MoreHorizontal, Reply, Pin, Edit, Trash2, MessageSquare, History } from
 import { formatDistanceToNow } from "date-fns";
 import ReactionsBar from "./ReactionsBar";
 import { MessageEditHistory } from "./MessageEditHistory";
+import { AudioPlayer } from "./AudioPlayer";
 
 interface Message {
   id: string;
@@ -18,6 +19,8 @@ interface Message {
   is_pinned: boolean;
   pinned_at?: string | null;
   pinned_by?: string | null;
+  audio_url?: string | null;
+  audio_duration?: number | null;
   profiles?: {
     full_name: string;
     avatar_url?: string;
@@ -137,6 +140,15 @@ const MessageItem = ({
           <div className="text-sm text-foreground whitespace-pre-wrap break-words">
             {renderContent(message.content)}
           </div>
+
+          {message.audio_url && (
+            <div className="mt-2">
+              <AudioPlayer
+                audioUrl={message.audio_url}
+                duration={message.audio_duration || 0}
+              />
+            </div>
+          )}
 
           {reactions.length > 0 && (
             <div role="group" aria-label="Message reactions">

@@ -1,6 +1,7 @@
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FilePreviewProps {
   fileUrl: string;
@@ -11,7 +12,26 @@ interface FilePreviewProps {
 }
 
 export function FilePreview({ fileUrl, fileName, fileType, open, onClose }: FilePreviewProps) {
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    // Extract file ID from URL if it's from our storage
+    const match = fileUrl.match(/\/team-files\/(.+)/);
+    if (match) {
+      try {
+        // Get file record to increment download count
+        const { data: fileRecord } = await supabase
+          .from('file_uploads')
+          .select('id')
+          .eq('file_url', fileUrl)
+          .maybeSingle();
+
+        if (fileRecord) {
+          await supabase.rpc('increment_download_count', { file_id: fileRecord.id });
+        }
+      } catch (error) {
+        console.error('Error tracking download:', error);
+      }
+    }
+    
     window.open(fileUrl, '_blank');
   };
 

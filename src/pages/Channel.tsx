@@ -26,6 +26,8 @@ import { NotificationPreferences } from "@/components/NotificationPreferences";
 import { ScheduleMessageDialog } from "@/components/ScheduleMessageDialog";
 import { ScheduledMessagesPanel } from "@/components/ScheduledMessagesPanel";
 import { TemplatePickerPopover } from "@/components/TemplatePickerPopover";
+import { AudioRecorder } from "@/components/AudioRecorder";
+import { ChannelMembersDialog } from "@/components/ChannelMembersDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +50,8 @@ interface Message {
   is_pinned: boolean;
   pinned_at?: string | null;
   pinned_by?: string | null;
+  audio_url?: string | null;
+  audio_duration?: number | null;
   profiles?: {
     full_name: string;
     avatar_url?: string;
@@ -125,6 +129,9 @@ const Channel = () => {
   // Phase 7: Enhanced Collaboration
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [showScheduledPanel, setShowScheduledPanel] = useState(false);
+  
+  // Phase 8: Audio messages
+  const [showAudioRecorder, setShowAudioRecorder] = useState(false);
 
   useEffect(() => {
     if (channelId) {
@@ -605,6 +612,13 @@ const Channel = () => {
               </div>
             </div>
             <div className="flex gap-2">
+              {isAdmin && (
+                <ChannelMembersDialog
+                  channelId={channelId || ""}
+                  channelName={channel.name}
+                  isAdmin={isAdmin}
+                />
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -713,37 +727,91 @@ const Channel = () => {
                   onFileUploaded={handleFileUploaded}
                   disabled={loading}
                 />
-                <TemplatePickerPopover
-                  onSelect={(content) => {
-                    setNewMessage(content);
-                    textareaRef.current?.focus();
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  title="Schedule message"
-                  onClick={() => {
-                    if (newMessage.trim()) {
-                      setShowScheduleDialog(true);
-                    } else {
-                      toast.error('Write a message first');
-                    }
-                  }}
-                  disabled={loading || !newMessage.trim()}
-                >
-                  <Clock className="h-4 w-4" />
-                </Button>
+                {!showAudioRecorder && (
+                  <>
+                    <TemplatePickerPopover
+                      onSelect={(content) => {
+                        setNewMessage(content);
+                        textareaRef.current?.focus();
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title="Schedule message"
+                      onClick={() => {
+                        if (newMessage.trim()) {
+                          setShowScheduleDialog(true);
+                        } else {
+                          toast.error('Write a message first');
+                        }
+                      }}
+                      disabled={loading || !newMessage.trim()}
+                    >
+                      <Clock className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title="Record audio"
+                      onClick={() => setShowAudioRecorder(true)}
+                      disabled={loading}
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                    </Button>
+                  </>
+                )}
               </div>
-              <Button
-                type="submit"
-                disabled={loading || !newMessage.trim()}
-                className="bg-gradient-primary hover:opacity-90 transition-opacity"
-              >
-                Send
-              </Button>
+              {!showAudioRecorder && (
+                <Button
+                  type="submit"
+                  disabled={loading || !newMessage.trim()}
+                  className="bg-gradient-primary hover:opacity-90 transition-opacity"
+                >
+                  Send
+                </Button>
+              )}
             </div>
+            {showAudioRecorder && (
+              <div className="mt-2">
+                <AudioRecorder
+                  onRecordingComplete={async (audioBlob, duration) => {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) return;
+
+                    const fileName = `audio/${user.id}/${channelId}/${Date.now()}.webm`;
+                    const { error: uploadError } = await supabase.storage
+                      .from('team-files')
+                      .upload(fileName, audioBlob);
+
+                    if (uploadError) {
+                      toast.error('Failed to upload audio');
+                      return;
+                    }
+
+                    const { data: { publicUrl } } = supabase.storage
+                      .from('team-files')
+                      .getPublicUrl(fileName);
+                    
+                    await supabase.from('messages').insert({
+                      channel_id: channelId,
+                      user_id: user.id,
+                      content: '🎤 Voice message',
+                      audio_url: publicUrl,
+                      audio_duration: duration
+                    });
+
+                    setShowAudioRecorder(false);
+                    toast.success('Voice message sent');
+                  }}
+                  onCancel={() => setShowAudioRecorder(false)}
+                />
+              </div>
+            )}
           </form>
         </div>
       </div>
