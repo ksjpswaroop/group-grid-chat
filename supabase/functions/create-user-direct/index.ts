@@ -1,10 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const createUserSchema = z.object({
+  email: z.string().email().max(255),
+  fullName: z.string().trim().min(1).max(100),
+  role: z.enum(['admin', 'moderator', 'user']),
+  temporaryPassword: z.string().min(12).max(128)
+    .regex(/[a-z]/, 'Password must contain lowercase letters')
+    .regex(/[A-Z]/, 'Password must contain uppercase letters')
+    .regex(/[0-9]/, 'Password must contain numbers')
+    .regex(/[^a-zA-Z0-9]/, 'Password must contain special characters')
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -49,7 +61,18 @@ serve(async (req) => {
       );
     }
 
-    const { email, fullName, role, temporaryPassword } = await req.json();
+    const body = await req.json();
+    
+    // Validate input
+    const validationResult = createUserSchema.safeParse(body);
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input data', details: validationResult.error.issues }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { email, fullName, role, temporaryPassword } = validationResult.data;
 
     // Create the user with temporary password
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -99,9 +122,12 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('Error creating user:', error);
+    console.error('Error creating user:', {
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Unable to create user. Please try again or contact support.' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

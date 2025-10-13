@@ -1,10 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const createInvitationSchema = z.object({
+  email: z.string().email().max(255),
+  role: z.enum(['admin', 'moderator', 'user']).default('user'),
+  expiresInDays: z.number().int().min(1).max(365).default(7)
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -36,7 +43,18 @@ serve(async (req) => {
       throw new Error('Forbidden: Admin access required');
     }
 
-    const { email, role = 'user', expiresInDays = 7 } = await req.json();
+    const body = await req.json();
+    
+    // Validate input
+    const validationResult = createInvitationSchema.safeParse(body);
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input data', details: validationResult.error.issues }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { email, role, expiresInDays } = validationResult.data;
 
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
@@ -70,11 +88,15 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error creating invitation:', error);
+    console.error('Error creating invitation:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
     const message = error instanceof Error ? error.message : 'An error occurred';
+    const isAuthError = message.includes('Forbidden') || message.includes('Unauthorized');
     return new Response(
-      JSON.stringify({ error: message }),
-      { status: message.includes('Forbidden') ? 403 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: isAuthError ? message : 'Unable to create invitation. Please try again.' }),
+      { status: isAuthError ? 403 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

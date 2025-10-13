@@ -1,10 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const acceptInvitationSchema = z.object({
+  token: z.string().length(64),
+  email: z.string().email().max(255),
+  password: z.string().min(12).max(128)
+    .regex(/[a-z]/, 'Password must contain lowercase letters')
+    .regex(/[A-Z]/, 'Password must contain uppercase letters')
+    .regex(/[0-9]/, 'Password must contain numbers')
+    .regex(/[^a-zA-Z0-9]/, 'Password must contain special characters'),
+  fullName: z.string().trim().min(1).max(100)
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,7 +29,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { token, email, password, fullName } = await req.json();
+    const body = await req.json();
+    
+    // Validate input
+    const validationResult = acceptInvitationSchema.safeParse(body);
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input data', details: validationResult.error.issues }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { token, email, password, fullName } = validationResult.data;
 
     const { data: invitation, error: inviteError } = await supabaseAdmin
       .from('invitations')
@@ -67,10 +90,12 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error accepting invitation:', error);
-    const message = error instanceof Error ? error.message : 'An error occurred';
+    console.error('Error accepting invitation:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: 'Unable to accept invitation. Please try again or contact support.' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

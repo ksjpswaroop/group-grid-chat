@@ -1,10 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const resetPasswordSchema = z.object({
+  user_id: z.string().uuid(),
+  force_change: z.boolean().optional()
+});
 
 // Generate secure random password
 function generateSecurePassword(): string {
@@ -68,11 +74,18 @@ serve(async (req) => {
       throw new Error('Admin access required');
     }
 
-    const { user_id, force_change } = await req.json();
-
-    if (!user_id) {
-      throw new Error('User ID is required');
+    const body = await req.json();
+    
+    // Validate input
+    const validationResult = resetPasswordSchema.safeParse(body);
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input data', details: validationResult.error.issues }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    const { user_id, force_change } = validationResult.data;
 
     // Generate secure password
     const newPassword = generateSecurePassword();
@@ -114,13 +127,17 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Reset password error:', error);
+    console.error('Reset password error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
     const message = error instanceof Error ? error.message : 'An error occurred';
+    const isAuthError = message.includes('Unauthorized') || message.includes('Admin access required');
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: isAuthError ? message : 'Unable to reset password. Please try again.' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: isAuthError ? 403 : 500,
       }
     );
   }
