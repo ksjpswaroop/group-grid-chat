@@ -15,7 +15,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Users, UserPlus, UserMinus, Search } from "lucide-react";
-import { PresenceDot } from "@/components/PresenceDot";
 
 interface Member {
   id: string;
@@ -167,15 +166,12 @@ export function ChannelMembersDialog({ channelId, channelName, isAdmin }: Channe
                       className="flex items-center justify-between p-2 rounded-lg hover:bg-muted"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={member.avatar_url} />
-                            <AvatarFallback className="text-xs">
-                              {getInitials(member.full_name || member.email)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <PresenceDot userIds={[member.id]} className="absolute -bottom-0.5 -right-0.5" />
-                        </div>
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={member.avatar_url} />
+                          <AvatarFallback className="text-xs">
+                            {getInitials(member.full_name || member.email)}
+                          </AvatarFallback>
+                        </Avatar>
                         <div>
                           <p className="text-sm font-medium">{member.full_name}</p>
                           <p className="text-xs text-muted-foreground">{member.email}</p>
