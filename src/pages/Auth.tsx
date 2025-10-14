@@ -63,8 +63,19 @@ const Auth = () => {
           }
         });
 
-        if (error) throw error;
-        if (!data.success) throw new Error('Failed to accept invitation');
+        if (error) {
+          // Handle validation errors from the server
+          const errorMessage = error.message || 'Failed to accept invitation';
+          toast.error(errorMessage);
+          setLoading(false);
+          return;
+        }
+        
+        if (!data.success) {
+          toast.error(data.error || 'Failed to accept invitation');
+          setLoading(false);
+          return;
+        }
 
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
