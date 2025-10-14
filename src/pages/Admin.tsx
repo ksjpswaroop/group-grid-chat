@@ -45,30 +45,36 @@ const Admin = () => {
   }, []);
 
   const checkAdminAccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      toast.error("Access denied. Please sign in.");
-      navigate('/auth');
-      return;
-    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setIsAdmin(false);
+        navigate('/auth');
+        return;
+      }
 
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-    
-    if (!data) {
-      toast.error("Access denied. Admin only.");
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!data) {
+        setIsAdmin(false);
+        navigate('/');
+        return;
+      }
+      
+      setIsAdmin(true);
+      loadUsers();
+      loadLivekitConfig();
+    } catch (error) {
+      console.error('Admin access check failed:', error);
+      setIsAdmin(false);
       navigate('/');
-      return;
     }
-    
-    setIsAdmin(true);
-    loadUsers();
-    loadLivekitConfig();
   };
 
   const loadUsers = async () => {
@@ -171,15 +177,9 @@ const Admin = () => {
     }
   };
 
-  if (isAdmin === null) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Verifying access...</p>
-      </div>
-    );
-  }
-
-  if (isAdmin === false) {
+  // Don't render anything until admin status is verified
+  // This prevents flashing of admin UI before redirect
+  if (!isAdmin) {
     return null;
   }
 
