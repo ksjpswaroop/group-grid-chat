@@ -44,11 +44,6 @@ const ChangePassword = () => {
       return;
     }
 
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -102,7 +97,6 @@ const ChangePassword = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                minLength={8}
               />
             </div>
 
@@ -115,7 +109,6 @@ const ChangePassword = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                minLength={8}
               />
             </div>
 
