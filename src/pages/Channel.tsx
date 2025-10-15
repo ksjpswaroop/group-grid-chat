@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { log } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -89,6 +90,8 @@ const Channel = () => {
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(channelId || "");
   const realtimeManager = getRealtimeManager();
   
+  log.info('Channel', 'Channel', 'Component rendering', { channelId });
+  
   // Phase 5 features
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [showPinnedPanel, setShowPinnedPanel] = useState(false);
@@ -135,25 +138,35 @@ const Channel = () => {
 
   useEffect(() => {
     if (channelId) {
+      const startTime = log.timeStart('Channel', 'useEffect');
+      log.info('Channel', 'useEffect', 'Initializing channel', { channelId });
+      
       setLoading(true);
       const initChannel = async () => {
         try {
+          log.info('Channel', 'initChannel', 'Starting channel initialization sequence');
+          
           await joinChannel();
           await loadChannel();
           await loadMessages();
           await getCurrentUser();
           await loadChannelMembers();
           await checkAdminStatus();
+          
+          log.info('Channel', 'initChannel', 'Channel initialization complete');
         } catch (error) {
+          log.error('Channel', 'initChannel', 'Channel init error', { error });
           console.error('Channel init error:', error);
           toast.error('Failed to load channel');
         } finally {
           setLoading(false);
+          log.timeEnd('Channel', 'useEffect', startTime, 'Channel initialization complete');
         }
       };
       initChannel();
 
       // Subscribe to messages
+      log.info('Channel', 'useEffect', 'Setting up realtime subscriptions', { channelId });
       realtimeManager.subscribeToChannel(`messages-${channelId}`, {
         filter: {
           event: '*',
@@ -161,7 +174,8 @@ const Channel = () => {
           table: 'messages',
           filter: `channel_id=eq.${channelId}`
         },
-        onMessage: () => {
+        onMessage: (payload) => {
+          log.debug('Channel', 'onMessage', 'Realtime message received', { payload });
           loadMessages();
           loadThreadReplyCounts();
         }
@@ -177,7 +191,8 @@ const Channel = () => {
             schema: 'public',
             table: 'message_reactions'
           },
-          () => {
+          (payload) => {
+            log.debug('Channel', 'onReactionChange', 'Reaction change received', { payload });
             loadReactionsForMessages();
           }
         )
@@ -195,6 +210,7 @@ const Channel = () => {
             filter: `channel_id=eq.${channelId}`
           },
           (payload: any) => {
+            log.debug('Channel', 'onThreadChange', 'Thread change received', { payload });
             if (payload.new.parent_message_id) {
               loadThreadReplyCounts();
               // Show toast if it's a reply to a thread you're following
@@ -207,6 +223,7 @@ const Channel = () => {
                   .maybeSingle()
                   .then(({ data }) => {
                     if (data && payload.new.user_id !== currentUserId) {
+                      log.info('Channel', 'onThreadChange', 'Showing thread notification toast');
                       toast.info('New reply in a thread you\'re following');
                     }
                   });
@@ -217,6 +234,7 @@ const Channel = () => {
         .subscribe();
 
       return () => {
+        log.info('Channel', 'useEffect', 'Cleaning up subscriptions', { channelId });
         realtimeManager.unsubscribeFromChannel(`messages-${channelId}`);
         supabase.removeChannel(reactionsChannel);
         supabase.removeChannel(threadsChannel);
@@ -260,6 +278,9 @@ const Channel = () => {
   };
 
   const loadChannel = async () => {
+    const startTime = log.timeStart('Channel', 'loadChannel');
+    log.info('Channel', 'loadChannel', 'Loading channel data', { channelId });
+    
     try {
       const { data, error } = await supabase
         .from("channels")
@@ -267,24 +288,55 @@ const Channel = () => {
         .eq("id", channelId)
         .single();
       
-      if (error) throw error;
-      if (data) setChannel(data);
+      if (error) {
+        log.error('Channel', 'loadChannel', 'Error loading channel', { error });
+        throw error;
+      }
+      
+      if (data) {
+        log.info('Channel', 'loadChannel', 'Channel loaded successfully', { 
+          channelId: data.id, 
+          name: data.name 
+        });
+        setChannel(data);
+      }
     } catch (error) {
+      log.error('Channel', 'loadChannel', 'Failed to load channel', { error });
       console.error("Error loading channel:", error);
       toast.error("Failed to load channel");
+    } finally {
+      log.timeEnd('Channel', 'loadChannel', startTime, 'Channel load complete');
     }
   };
 
   const loadMessages = async () => {
-    const { data } = await supabase
-      .from("messages")
-      .select("*, profiles!messages_user_id_fkey(full_name, avatar_url)")
-      .eq("channel_id", channelId)
-      .is("parent_message_id", null)
-      .order("created_at", { ascending: true });
+    const startTime = log.timeStart('Channel', 'loadMessages');
+    log.info('Channel', 'loadMessages', 'Loading messages', { channelId });
+    
+    try {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*, profiles!messages_user_id_fkey(full_name, avatar_url)")
+        .eq("channel_id", channelId)
+        .is("parent_message_id", null)
+        .order("created_at", { ascending: true });
 
-    if (data) {
-      setMessages(data as any);
+      if (error) {
+        log.error('Channel', 'loadMessages', 'Error loading messages', { error });
+        return;
+      }
+
+      if (data) {
+        log.info('Channel', 'loadMessages', 'Messages loaded successfully', { 
+          count: data.length,
+          channelId 
+        });
+        setMessages(data as any);
+      }
+    } catch (error) {
+      log.error('Channel', 'loadMessages', 'Unexpected error loading messages', { error });
+    } finally {
+      log.timeEnd('Channel', 'loadMessages', startTime, 'Messages load complete');
     }
   };
 
@@ -365,13 +417,26 @@ const Channel = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || loading) return;
+    if (!newMessage.trim() || loading) {
+      log.debug('Channel', 'handleSendMessage', 'Message send blocked', { 
+        hasMessage: !!newMessage.trim(),
+        loading 
+      });
+      return;
+    }
+
+    const startTime = log.timeStart('Channel', 'handleSendMessage');
+    log.info('Channel', 'handleSendMessage', 'Sending message', { 
+      channelId,
+      messageLength: newMessage.trim().length 
+    });
 
     setLoading(true);
     
     // Optimistic UI: Add message immediately
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      log.warn('Channel', 'handleSendMessage', 'No user found, aborting send');
       setLoading(false);
       return;
     }
@@ -390,12 +455,16 @@ const Channel = () => {
       }
     };
     
+    log.debug('Channel', 'handleSendMessage', 'Adding optimistic message', { 
+      messageId: optimisticMessage.id 
+    });
     setOptimisticMessages([...optimisticMessages, optimisticMessage]);
     const messageContent = newMessage.trim();
     setNewMessage("");
     stopTyping();
 
     try {
+      log.debug('Channel', 'handleSendMessage', 'Inserting message to database');
       const { data: message, error } = await supabase
         .from("messages")
         .insert({
@@ -406,11 +475,21 @@ const Channel = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        log.error('Channel', 'handleSendMessage', 'Error inserting message', { error });
+        throw error;
+      }
+
+      log.info('Channel', 'handleSendMessage', 'Message inserted successfully', { 
+        messageId: message.id 
+      });
 
       // Create mentions
       const mentionedUserIds = parseMentions(messageContent);
       if (mentionedUserIds.length > 0 && message) {
+        log.debug('Channel', 'handleSendMessage', 'Creating mentions', { 
+          mentionCount: mentionedUserIds.length 
+        });
         await supabase
           .from("mentions")
           .insert(
@@ -422,9 +501,11 @@ const Channel = () => {
       }
 
       // Remove optimistic message
+      log.debug('Channel', 'handleSendMessage', 'Removing optimistic message');
       setOptimisticMessages(optimisticMessages.filter(m => m.id !== optimisticMessage.id));
       
       // Mark channel as read
+      log.debug('Channel', 'handleSendMessage', 'Marking channel as read');
       await supabase
         .from('channel_read_status')
         .upsert({
@@ -432,7 +513,10 @@ const Channel = () => {
           channel_id: channelId,
           last_read: new Date().toISOString()
         });
+        
+      log.timeEnd('Channel', 'handleSendMessage', startTime, 'Message sent successfully');
     } catch (error: any) {
+      log.error('Channel', 'handleSendMessage', 'Failed to send message', { error });
       toast.error(error.message);
       setOptimisticMessages(optimisticMessages.filter(m => m.id !== optimisticMessage.id));
       setNewMessage(messageContent); // Restore message
