@@ -174,6 +174,11 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              {isInvite && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Password must be at least 12 characters with uppercase, lowercase, number and special character (@$!%*?&)
+                </p>
+              )}
           </div>
 
           <Button

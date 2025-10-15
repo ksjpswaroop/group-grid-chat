@@ -11,7 +11,13 @@ const createUserSchema = z.object({
   email: z.string().email().max(255),
   fullName: z.string().trim().min(1).max(100),
   role: z.enum(['admin', 'moderator', 'user']),
-  temporaryPassword: z.string().min(1).max(128)
+  temporaryPassword: z.string()
+    .min(12, 'Password must be at least 12 characters')
+    .max(128, 'Password must be at most 128 characters')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[@$!%*?&]/, 'Password must contain at least one special character (@$!%*?&)')
 });
 
 serve(async (req) => {
