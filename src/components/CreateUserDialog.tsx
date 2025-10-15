@@ -17,26 +17,11 @@ export const CreateUserDialog = () => {
   const [loading, setLoading] = useState(false);
 
   const generatePassword = () => {
-    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
-    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const numbers = '0123456789';
-    const special = '@$!%*?&';
-    
-    // Ensure at least one of each required type
-    let password = '';
-    password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
-    password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
-    password += numbers.charAt(Math.floor(Math.random() * numbers.length));
-    password += special.charAt(Math.floor(Math.random() * special.length));
-    
-    // Fill remaining characters (16 total)
-    const allChars = lowercase + uppercase + numbers + special;
-    for (let i = password.length; i < 16; i++) {
-      password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+    let password = "";
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    
-    // Shuffle the password
-    password = password.split('').sort(() => Math.random() - 0.5).join('');
     setTemporaryPassword(password);
   };
 
@@ -137,7 +122,7 @@ export const CreateUserDialog = () => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Must be at least 12 characters with uppercase, lowercase, number and special character (@$!%*?&). User will be required to change this password on first login.
+              User will be required to change this password on first login
             </p>
           </div>
 

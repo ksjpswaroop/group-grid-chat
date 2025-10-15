@@ -63,19 +63,8 @@ const Auth = () => {
           }
         });
 
-        if (error) {
-          // Handle validation errors from the server
-          const errorMessage = error.message || 'Failed to accept invitation';
-          toast.error(errorMessage);
-          setLoading(false);
-          return;
-        }
-        
-        if (!data.success) {
-          toast.error(data.error || 'Failed to accept invitation');
-          setLoading(false);
-          return;
-        }
+        if (error) throw error;
+        if (!data.success) throw new Error('Failed to accept invitation');
 
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
@@ -173,12 +162,10 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={12}
+                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$"
+                title="Password must be at least 12 characters with uppercase, lowercase, number and special character"
               />
-              {isInvite && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Password must be at least 12 characters with uppercase, lowercase, number and special character (@$!%*?&)
-                </p>
-              )}
           </div>
 
           <Button

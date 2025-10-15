@@ -44,28 +44,8 @@ const ChangePassword = () => {
       return;
     }
 
-    if (newPassword.length < 12) {
-      toast.error("Password must be at least 12 characters");
-      return;
-    }
-
-    if (!/[a-z]/.test(newPassword)) {
-      toast.error("Password must contain at least one lowercase letter");
-      return;
-    }
-
-    if (!/[A-Z]/.test(newPassword)) {
-      toast.error("Password must contain at least one uppercase letter");
-      return;
-    }
-
-    if (!/[0-9]/.test(newPassword)) {
-      toast.error("Password must contain at least one number");
-      return;
-    }
-
-    if (!/[@$!%*?&]/.test(newPassword)) {
-      toast.error("Password must contain at least one special character (@$!%*?&)");
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
 
@@ -122,6 +102,7 @@ const ChangePassword = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
+                minLength={8}
               />
             </div>
 
@@ -134,6 +115,7 @@ const ChangePassword = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                minLength={8}
               />
             </div>
 
