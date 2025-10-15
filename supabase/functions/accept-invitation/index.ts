@@ -11,7 +11,7 @@ const acceptInvitationSchema = z.object({
   token: z.string().length(64),
   email: z.string().email().max(255),
   password: z.string()
-    .min(12, 'Password must be at least 12 characters')
+    .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must be at most 128 characters')
     .regex(/[a-z]/, 'Password must contain lowercase letters')
     .regex(/[A-Z]/, 'Password must contain uppercase letters')
