@@ -3,6 +3,8 @@
  * Messages are persisted to localStorage and sent when connection is restored
  */
 
+import { log } from '@/lib/logger';
+
 interface QueuedMessage {
   id: string;
   channelId: string;
@@ -21,10 +23,17 @@ class OfflineQueue {
   private listeners: Set<() => void> = new Set();
 
   constructor() {
+    log.info('OfflineQueue', 'constructor', 'Initializing offline queue');
     this.loadQueue();
     // Listen for online/offline events
-    window.addEventListener('online', () => this.processQueue());
-    window.addEventListener('offline', () => this.notifyListeners());
+    window.addEventListener('online', () => {
+      log.info('OfflineQueue', 'online', 'Network online, processing queue');
+      this.processQueue();
+    });
+    window.addEventListener('offline', () => {
+      log.info('OfflineQueue', 'offline', 'Network offline, queueing messages');
+      this.notifyListeners();
+    });
   }
 
   /**
@@ -38,6 +47,12 @@ class OfflineQueue {
       timestamp: Date.now(),
       retryCount: 0,
     };
+    
+    log.info('OfflineQueue', 'add', 'Adding message to queue', { 
+      messageId: message.id, 
+      channelId, 
+      contentLength: content.length 
+    });
     
     this.queue.push(message);
     this.saveQueue();
@@ -83,8 +98,18 @@ class OfflineQueue {
    */
   async processQueue(): Promise<void> {
     if (this.processing || !this.isOnline() || this.queue.length === 0) {
+      log.debug('OfflineQueue', 'processQueue', 'Skipping queue processing', { 
+        processing: this.processing, 
+        online: this.isOnline(), 
+        queueLength: this.queue.length 
+      });
       return;
     }
+
+    const startTime = log.timeStart('OfflineQueue', 'processQueue');
+    log.info('OfflineQueue', 'processQueue', 'Processing offline queue', { 
+      messageCount: this.queue.length 
+    });
 
     this.processing = true;
 
@@ -92,19 +117,32 @@ class OfflineQueue {
     
     for (const message of messagesToProcess) {
       try {
+        log.debug('OfflineQueue', 'processQueue', 'Processing message', { 
+          messageId: message.id, 
+          retryCount: message.retryCount 
+        });
+        
         // This will be called by the Channel component
         const success = await this.sendMessage(message);
         
         if (success) {
+          log.info('OfflineQueue', 'processQueue', 'Message sent successfully', { messageId: message.id });
           this.remove(message.id);
         } else {
           message.retryCount++;
           if (message.retryCount >= MAX_RETRIES) {
+            log.error('OfflineQueue', 'processQueue', 'Max retries reached for message', { message });
             console.error('Max retries reached for message:', message);
             this.remove(message.id);
+          } else {
+            log.warn('OfflineQueue', 'processQueue', 'Message send failed, will retry', { 
+              messageId: message.id, 
+              retryCount: message.retryCount 
+            });
           }
         }
       } catch (error) {
+        log.error('OfflineQueue', 'processQueue', 'Error processing queued message', { error, messageId: message.id });
         console.error('Error processing queued message:', error);
         message.retryCount++;
         if (message.retryCount >= MAX_RETRIES) {
@@ -118,6 +156,8 @@ class OfflineQueue {
     this.processing = false;
     this.saveQueue();
     this.notifyListeners();
+    
+    log.timeEnd('OfflineQueue', 'processQueue', startTime, 'Queue processing complete');
   }
 
   /**
