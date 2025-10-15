@@ -79,15 +79,38 @@ const Admin = () => {
 
   const loadUsers = async () => {
     setLoading(true);
-    const { data: profiles } = await supabase.from("profiles").select("*");
-    
-    if (profiles) {
+    try {
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .order('created_at', { ascending: false });
+      
+      if (profilesError) {
+        console.error('Error loading profiles:', profilesError);
+        toast.error('Failed to load users: ' + profilesError.message);
+        setLoading(false);
+        return;
+      }
+      
+      if (!profiles || profiles.length === 0) {
+        console.log('No profiles found');
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      console.log('Loaded profiles:', profiles.length);
+      
       const usersWithRoles = await Promise.all(
         profiles.map(async (profile) => {
-          const { data: roles } = await supabase
+          const { data: roles, error: rolesError } = await supabase
             .from("user_roles")
             .select("role")
             .eq("user_id", profile.id);
+          
+          if (rolesError) {
+            console.error('Error loading roles for user:', profile.id, rolesError);
+          }
           
           return {
             ...profile,
@@ -96,9 +119,14 @@ const Admin = () => {
         })
       );
       
+      console.log('Users with roles:', usersWithRoles);
       setUsers(usersWithRoles);
+    } catch (error) {
+      console.error('Unexpected error loading users:', error);
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadLivekitConfig = async () => {
@@ -252,6 +280,18 @@ const Admin = () => {
         {loading ? (
           <div className="flex items-center justify-center p-8">
             <p className="text-muted-foreground">Loading users...</p>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 text-center">
+            <Users className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-medium mb-2">No users found</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Create your first user or send an invitation to get started
+            </p>
+            <div className="flex gap-2">
+              <CreateUserDialog />
+              <InviteUserDialog />
+            </div>
           </div>
         ) : (
           <Table>
