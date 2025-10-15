@@ -29,9 +29,8 @@ const Index = () => {
       (event, session) => {
         if (event === "SIGNED_OUT") {
           navigate("/auth");
-        } else if (event === "SIGNED_IN") {
-          loadFirstChannel();
         }
+        // Don't navigate on SIGNED_IN - user is already on a page
       }
     );
 
@@ -42,7 +41,8 @@ const Index = () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       navigate("/auth");
-    } else {
+    } else if (window.location.pathname === "/") {
+      // Only load first channel if user is on root path
       loadFirstChannel();
     }
     setLoading(false);
