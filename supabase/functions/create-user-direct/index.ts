@@ -126,8 +126,20 @@ serve(async (req) => {
       error: error.message,
       timestamp: new Date().toISOString()
     });
+    
+    // Return specific error messages to help the user
+    let errorMessage = 'Unable to create user. Please try again.';
+    
+    if (error.message?.includes('already been registered')) {
+      errorMessage = 'A user with this email address already exists.';
+    } else if (error.message?.includes('password')) {
+      errorMessage = 'Password does not meet security requirements.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     return new Response(
-      JSON.stringify({ error: 'Unable to create user. Please try again or contact support.' }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
