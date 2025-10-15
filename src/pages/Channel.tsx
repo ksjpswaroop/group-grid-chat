@@ -137,12 +137,19 @@ const Channel = () => {
     if (channelId) {
       setLoading(true);
       const initChannel = async () => {
-        await joinChannel();
-        await loadChannel();
-        await loadMessages();
-        await getCurrentUser();
-        await loadChannelMembers();
-        await checkAdminStatus();
+        try {
+          await joinChannel();
+          await loadChannel();
+          await loadMessages();
+          await getCurrentUser();
+          await loadChannelMembers();
+          await checkAdminStatus();
+        } catch (error) {
+          console.error('Channel init error:', error);
+          toast.error('Failed to load channel');
+        } finally {
+          setLoading(false);
+        }
       };
       initChannel();
 
@@ -265,8 +272,6 @@ const Channel = () => {
     } catch (error) {
       console.error("Error loading channel:", error);
       toast.error("Failed to load channel");
-    } finally {
-      setLoading(false);
     }
   };
 
