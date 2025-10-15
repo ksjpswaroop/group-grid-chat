@@ -14,8 +14,8 @@ export const PasswordStrengthIndicator = ({ password, className }: PasswordStren
     let score = 0;
     
     // Length check
-    if (password.length >= 12) score += 2;
-    else if (password.length >= 8) score += 1;
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
     
     // Character variety checks
     if (/[a-z]/.test(password)) score += 1;

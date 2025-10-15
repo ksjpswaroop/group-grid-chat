@@ -39,8 +39,8 @@ const ChangePassword = () => {
   };
 
   const validatePassword = (password: string): boolean => {
-    if (password.length < 12) {
-      toast.error("Password must be at least 12 characters");
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return false;
     }
     if (!/[a-z]/.test(password)) {
@@ -120,7 +120,7 @@ const ChangePassword = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                minLength={12}
+                minLength={8}
                 aria-describedby="password-requirements"
               />
               <PasswordStrengthIndicator password={newPassword} className="mt-2" />
@@ -136,7 +136,7 @@ const ChangePassword = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                minLength={12}
+                minLength={8}
               />
             </div>
 

@@ -9,7 +9,7 @@ interface PasswordRequirementsProps {
 
 export const PasswordRequirements = ({ password, className }: PasswordRequirementsProps) => {
   const requirements = useMemo(() => [
-    { label: "At least 12 characters", met: password.length >= 12 },
+    { label: "At least 8 characters", met: password.length >= 8 },
     { label: "Contains uppercase letter (A-Z)", met: /[A-Z]/.test(password) },
     { label: "Contains lowercase letter (a-z)", met: /[a-z]/.test(password) },
     { label: "Contains number (0-9)", met: /[0-9]/.test(password) },
