@@ -82,7 +82,7 @@ const Channel = () => {
   const [channel, setChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -135,12 +135,16 @@ const Channel = () => {
 
   useEffect(() => {
     if (channelId) {
-      loadChannel();
-      loadMessages();
-      joinChannel();
-      getCurrentUser();
-      loadChannelMembers();
-      checkAdminStatus();
+      setLoading(true);
+      const initChannel = async () => {
+        await joinChannel();
+        await loadChannel();
+        await loadMessages();
+        await getCurrentUser();
+        await loadChannelMembers();
+        await checkAdminStatus();
+      };
+      initChannel();
 
       // Subscribe to messages
       realtimeManager.subscribeToChannel(`messages-${channelId}`, {
@@ -249,12 +253,21 @@ const Channel = () => {
   };
 
   const loadChannel = async () => {
-    const { data } = await supabase
-      .from("channels")
-      .select("*")
-      .eq("id", channelId)
-      .single();
-    if (data) setChannel(data);
+    try {
+      const { data, error } = await supabase
+        .from("channels")
+        .select("*")
+        .eq("id", channelId)
+        .single();
+      
+      if (error) throw error;
+      if (data) setChannel(data);
+    } catch (error) {
+      console.error("Error loading channel:", error);
+      toast.error("Failed to load channel");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadMessages = async () => {
