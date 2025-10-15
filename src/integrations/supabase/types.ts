@@ -939,6 +939,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      users_share_context: {
+        Args: { user_a: string; user_b: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "user"
