@@ -78,6 +78,7 @@ interface Reaction {
 }
 
 const Channel = () => {
+  console.log('[Channel] Component rendering, channelId:', useParams().channelId);
   const { channelId } = useParams();
   const [channel, setChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -88,6 +89,9 @@ const Channel = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(channelId || "");
   const realtimeManager = getRealtimeManager();
+  
+  // Track function calls to detect loops
+  const callCountRef = useRef({ loadMessages: 0, loadReactions: 0, loadThreadCounts: 0 });
   
   // Phase 5 features
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -134,18 +138,27 @@ const Channel = () => {
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
 
   useEffect(() => {
+    console.log('[Channel] Main useEffect triggered, channelId:', channelId);
     if (channelId) {
       setLoading(true);
       const initChannel = async () => {
+        console.log('[Channel] initChannel started for channelId:', channelId);
         try {
+          console.log('[Channel] Step 1: joinChannel');
           await joinChannel();
+          console.log('[Channel] Step 2: loadChannel');
           await loadChannel();
+          console.log('[Channel] Step 3: loadMessages');
           await loadMessages();
+          console.log('[Channel] Step 4: getCurrentUser');
           await getCurrentUser();
+          console.log('[Channel] Step 5: loadChannelMembers');
           await loadChannelMembers();
+          console.log('[Channel] Step 6: checkAdminStatus');
           await checkAdminStatus();
+          console.log('[Channel] initChannel completed successfully');
         } catch (error) {
-          console.error('Channel init error:', error);
+          console.error('[Channel] Channel init error:', error);
           toast.error('Failed to load channel');
         } finally {
           setLoading(false);
@@ -154,6 +167,7 @@ const Channel = () => {
       initChannel();
 
       // Subscribe to messages
+      console.log('[Channel] Setting up realtime subscription for messages-' + channelId);
       realtimeManager.subscribeToChannel(`messages-${channelId}`, {
         filter: {
           event: '*',
@@ -162,6 +176,7 @@ const Channel = () => {
           filter: `channel_id=eq.${channelId}`
         },
         onMessage: () => {
+          console.log('[Channel] Realtime message received, reloading messages and thread counts');
           loadMessages();
           loadThreadReplyCounts();
         }
@@ -217,6 +232,7 @@ const Channel = () => {
         .subscribe();
 
       return () => {
+        console.log('[Channel] Cleanup: Unsubscribing from all channels for channelId:', channelId);
         realtimeManager.unsubscribeFromChannel(`messages-${channelId}`);
         supabase.removeChannel(reactionsChannel);
         supabase.removeChannel(threadsChannel);
@@ -225,11 +241,14 @@ const Channel = () => {
   }, [channelId]);
 
   useEffect(() => {
+    console.log('[Channel] Messages changed, count:', messages.length, 'scrolling to bottom');
     scrollToBottom();
   }, [messages]);
 
   useEffect(() => {
+    console.log('[Channel] Messages array changed, length:', messages.length);
     if (messages.length > 0) {
+      console.log('[Channel] Loading reactions and thread counts for', messages.length, 'messages');
       loadReactionsForMessages();
       loadThreadReplyCounts();
     }
@@ -276,6 +295,14 @@ const Channel = () => {
   };
 
   const loadMessages = async () => {
+    callCountRef.current.loadMessages++;
+    console.log('[Channel] loadMessages called, count:', callCountRef.current.loadMessages, 'channelId:', channelId);
+    
+    if (callCountRef.current.loadMessages > 10) {
+      console.error('[Channel] ⚠️ INFINITE LOOP DETECTED: loadMessages called more than 10 times!');
+      console.trace('[Channel] Stack trace:');
+    }
+    
     const { data } = await supabase
       .from("messages")
       .select("*, profiles!messages_user_id_fkey(full_name, avatar_url)")
@@ -284,6 +311,7 @@ const Channel = () => {
       .order("created_at", { ascending: true });
 
     if (data) {
+      console.log('[Channel] loadMessages: fetched', data.length, 'messages');
       setMessages(data as any);
     }
   };
@@ -308,6 +336,14 @@ const Channel = () => {
   };
 
   const loadReactionsForMessages = async () => {
+    callCountRef.current.loadReactions++;
+    console.log('[Channel] loadReactionsForMessages called, count:', callCountRef.current.loadReactions, 'messageCount:', messages.length);
+    
+    if (callCountRef.current.loadReactions > 10) {
+      console.error('[Channel] ⚠️ INFINITE LOOP DETECTED: loadReactionsForMessages called more than 10 times!');
+      console.trace('[Channel] Stack trace:');
+    }
+    
     const messageIds = messages.map(m => m.id);
     if (messageIds.length === 0) return;
 
@@ -320,10 +356,19 @@ const Channel = () => {
       }
     }
     
+    console.log('[Channel] loadReactionsForMessages: loaded reactions for', Object.keys(reactions).length, 'messages');
     setMessageReactions(reactions);
   };
 
   const loadThreadReplyCounts = async () => {
+    callCountRef.current.loadThreadCounts++;
+    console.log('[Channel] loadThreadReplyCounts called, count:', callCountRef.current.loadThreadCounts, 'messageCount:', messages.length);
+    
+    if (callCountRef.current.loadThreadCounts > 10) {
+      console.error('[Channel] ⚠️ INFINITE LOOP DETECTED: loadThreadReplyCounts called more than 10 times!');
+      console.trace('[Channel] Stack trace:');
+    }
+    
     const messageIds = messages.map(m => m.id);
     if (messageIds.length === 0) return;
 
@@ -336,6 +381,7 @@ const Channel = () => {
       }
     }
     
+    console.log('[Channel] loadThreadReplyCounts: loaded counts for', Object.keys(counts).length, 'messages');
     setThreadReplyCounts(counts);
   };
 

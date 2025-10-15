@@ -8,18 +8,22 @@ interface TypingUser {
 }
 
 export const useTypingIndicator = (channelId: string) => {
+  console.log('[useTypingIndicator] Hook initialized, channelId:', channelId);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    console.log('[useTypingIndicator] useEffect triggered, channelId:', channelId);
     const loadCurrentUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('[useTypingIndicator] Current user loaded:', user?.id);
       setCurrentUserId(user?.id || null);
     };
 
     loadCurrentUser();
 
+    console.log('[useTypingIndicator] Setting up realtime subscription for typing-' + channelId);
     const channel = supabase
       .channel(`typing-${channelId}`)
       .on(
@@ -31,6 +35,7 @@ export const useTypingIndicator = (channelId: string) => {
           filter: `channel_id=eq.${channelId}`,
         },
         async (payload) => {
+          console.log('[useTypingIndicator] Realtime typing change:', payload.eventType, 'user:', payload.new?.user_id || payload.old?.user_id);
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const { data: profile } = await supabase
               .from('profiles')
@@ -39,6 +44,7 @@ export const useTypingIndicator = (channelId: string) => {
               .single();
 
             if (profile && profile.id !== currentUserId) {
+              console.log('[useTypingIndicator] Adding typing user:', profile.full_name);
               setTypingUsers(prev => {
                 const filtered = prev.filter(u => u.user_id !== profile.id);
                 return [...filtered, {
@@ -49,10 +55,12 @@ export const useTypingIndicator = (channelId: string) => {
               });
 
               setTimeout(() => {
+                console.log('[useTypingIndicator] Removing typing user after 3s:', profile.full_name);
                 setTypingUsers(prev => prev.filter(u => u.user_id !== profile.id));
               }, 3000);
             }
           } else if (payload.eventType === 'DELETE') {
+            console.log('[useTypingIndicator] Removing typing user:', payload.old.user_id);
             setTypingUsers(prev => prev.filter(u => u.user_id !== payload.old.user_id));
           }
         }
@@ -60,6 +68,7 @@ export const useTypingIndicator = (channelId: string) => {
       .subscribe();
 
     return () => {
+      console.log('[useTypingIndicator] Cleanup: Unsubscribing from typing-' + channelId);
       channel.unsubscribe();
     };
   }, [channelId, currentUserId]);
@@ -67,6 +76,7 @@ export const useTypingIndicator = (channelId: string) => {
   const startTyping = useCallback(async () => {
     if (!currentUserId) return;
 
+    console.log('[useTypingIndicator] startTyping called for channelId:', channelId);
     if (typingTimeout.current) {
       clearTimeout(typingTimeout.current);
     }
@@ -91,6 +101,7 @@ export const useTypingIndicator = (channelId: string) => {
   const stopTyping = useCallback(async () => {
     if (!currentUserId) return;
 
+    console.log('[useTypingIndicator] stopTyping called for channelId:', channelId);
     if (typingTimeout.current) {
       clearTimeout(typingTimeout.current);
     }

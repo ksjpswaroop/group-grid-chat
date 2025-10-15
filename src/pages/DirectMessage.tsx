@@ -49,6 +49,7 @@ interface OtherUser {
 }
 
 export default function DirectMessage() {
+  console.log('[DirectMessage] Component rendering, userId:', useParams<{ userId: string }>().userId);
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -60,6 +61,9 @@ export default function DirectMessage() {
   const [messageReactions, setMessageReactions] = useState<Record<string, Reaction[]>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Track function calls to detect loops
+  const callCountRef = useRef({ loadMessages: 0, loadReactions: 0, loadOrCreateDm: 0 });
 
   const { getPresence } = usePresence(userId ? [userId] : []);
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(`dm-${userId}`);
@@ -70,12 +74,15 @@ export default function DirectMessage() {
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
 
   useEffect(() => {
+    console.log('[DirectMessage] Main useEffect triggered, userId:', userId);
     if (!userId) return;
     
+    console.log('[DirectMessage] Loading messages, user, and DM conversation');
     loadMessages();
     loadOtherUser();
     loadOrCreateDmConversation();
 
+    console.log('[DirectMessage] Setting up realtime subscription for dm-' + userId);
     const channel = supabase
       .channel(`dm-${userId}`)
       .on(
@@ -86,11 +93,13 @@ export default function DirectMessage() {
           table: 'direct_messages',
         },
         (payload) => {
+          console.log('[DirectMessage] Realtime INSERT received:', payload);
           const newMsg = payload.new as any;
           if (
             (newMsg.sender_id === userId && newMsg.recipient_id === currentUserId) ||
             (newMsg.sender_id === currentUserId && newMsg.recipient_id === userId)
           ) {
+            console.log('[DirectMessage] Message is for this conversation, reloading messages');
             loadMessages();
           }
         }
@@ -114,13 +123,16 @@ export default function DirectMessage() {
       .subscribe();
 
     return () => {
+      console.log('[DirectMessage] Cleanup: Unsubscribing from channels for userId:', userId);
       channel.unsubscribe();
       supabase.removeChannel(reactionsChannel);
     };
   }, [userId]);
   
   useEffect(() => {
+    console.log('[DirectMessage] Messages array changed, length:', messages.length);
     if (messages.length > 0) {
+      console.log('[DirectMessage] Loading reactions for', messages.length, 'messages');
       loadReactionsForMessages();
     }
   }, [messages]);
@@ -139,6 +151,14 @@ export default function DirectMessage() {
   };
   
   const loadReactionsForMessages = async () => {
+    callCountRef.current.loadReactions++;
+    console.log('[DirectMessage] loadReactionsForMessages called, count:', callCountRef.current.loadReactions, 'messageCount:', messages.length);
+    
+    if (callCountRef.current.loadReactions > 10) {
+      console.error('[DirectMessage] ⚠️ INFINITE LOOP DETECTED: loadReactionsForMessages called more than 10 times!');
+      console.trace('[DirectMessage] Stack trace:');
+    }
+    
     const messageIds = messages.map(m => m.id);
     if (messageIds.length === 0) return;
 
@@ -151,10 +171,19 @@ export default function DirectMessage() {
       }
     }
     
+    console.log('[DirectMessage] loadReactionsForMessages: loaded reactions for', Object.keys(reactions).length, 'messages');
     setMessageReactions(reactions);
   };
 
   const loadOrCreateDmConversation = async () => {
+    callCountRef.current.loadOrCreateDm++;
+    console.log('[DirectMessage] loadOrCreateDmConversation called, count:', callCountRef.current.loadOrCreateDm, 'userId:', userId);
+    
+    if (callCountRef.current.loadOrCreateDm > 5) {
+      console.error('[DirectMessage] ⚠️ INFINITE LOOP DETECTED: loadOrCreateDmConversation called more than 5 times!');
+      console.trace('[DirectMessage] Stack trace:');
+    }
+    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !userId) return;
 
@@ -212,6 +241,14 @@ export default function DirectMessage() {
   };
 
   const loadMessages = async () => {
+    callCountRef.current.loadMessages++;
+    console.log('[DirectMessage] loadMessages called, count:', callCountRef.current.loadMessages, 'userId:', userId);
+    
+    if (callCountRef.current.loadMessages > 10) {
+      console.error('[DirectMessage] ⚠️ INFINITE LOOP DETECTED: loadMessages called more than 10 times!');
+      console.trace('[DirectMessage] Stack trace:');
+    }
+    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !userId) return;
     
@@ -243,6 +280,7 @@ export default function DirectMessage() {
       sender: profilesMap.get(msg.sender_id) || { full_name: 'Unknown', email: '' }
     }));
 
+    console.log('[DirectMessage] loadMessages: fetched', enrichedMessages.length, 'messages');
     setMessages(enrichedMessages as DirectMessage[]);
   };
 

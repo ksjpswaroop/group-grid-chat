@@ -7,10 +7,16 @@ export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline';
  * Hook to automatically update user presence based on activity
  */
 export const usePresenceUpdater = () => {
+  console.log('[usePresenceUpdater] Hook initialized');
   const updatePresence = useCallback(async (status: PresenceStatus) => {
+    console.log('[usePresenceUpdater] updatePresence called with status:', status);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.log('[usePresenceUpdater] No user found, skipping update');
+      return;
+    }
 
+    console.log('[usePresenceUpdater] Upserting presence for user:', user.id, 'status:', status);
     await supabase
       .from('user_presence')
       .upsert({
@@ -21,14 +27,17 @@ export const usePresenceUpdater = () => {
       }, {
         onConflict: 'user_id'
       });
+    console.log('[usePresenceUpdater] Presence updated successfully');
   }, []);
 
   useEffect(() => {
+    console.log('[usePresenceUpdater] useEffect mounted, setting initial presence to online');
     // Set online on mount
     updatePresence('online');
 
     // Update presence on visibility change
     const handleVisibilityChange = () => {
+      console.log('[usePresenceUpdater] Visibility changed, hidden:', document.hidden);
       if (document.hidden) {
         updatePresence('away');
       } else {
@@ -38,6 +47,7 @@ export const usePresenceUpdater = () => {
 
     // Update presence on user activity
     const handleActivity = () => {
+      console.log('[usePresenceUpdater] User activity detected');
       updatePresence('online');
     };
 
@@ -59,13 +69,16 @@ export const usePresenceUpdater = () => {
       window.addEventListener(event, handleActivity);
     });
 
+    console.log('[usePresenceUpdater] Setting up 2-minute presence update interval');
     const presenceInterval = setInterval(() => {
+      console.log('[usePresenceUpdater] Periodic presence update (2min), hidden:', document.hidden);
       if (!document.hidden) {
         updatePresence('online');
       }
     }, 120000); // 2 minutes
 
     return () => {
+      console.log('[usePresenceUpdater] Cleanup: Removing event listeners and setting offline');
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       activityEvents.forEach(event => {

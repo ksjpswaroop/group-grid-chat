@@ -20,21 +20,29 @@ export class RealtimeManager {
   private currentUserId: string | null = null;
 
   constructor(config: RealtimeManagerConfig = {}) {
+    console.log('[RealtimeManager] Constructor called');
     this.config = {
       reconnectDelay: 1000,
       maxReconnectAttempts: 5,
       ...config
     };
     
+    console.log('[RealtimeManager] Initializing presence');
     this.initializePresence();
   }
 
   private async initializePresence() {
+    console.log('[RealtimeManager] initializePresence started');
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.log('[RealtimeManager] No user found, skipping presence initialization');
+      return;
+    }
     
+    console.log('[RealtimeManager] Setting up presence for user:', user.id);
     this.currentUserId = user.id;
     
+    console.log('[RealtimeManager] Upserting user presence to online');
     await supabase
       .from('user_presence')
       .upsert({
@@ -43,7 +51,11 @@ export class RealtimeManager {
         last_seen: new Date().toISOString()
       });
 
-    setInterval(() => this.updatePresence('online'), 30000);
+    console.log('[RealtimeManager] Setting up 30s presence update interval');
+    setInterval(() => {
+      console.log('[RealtimeManager] Periodic presence update (30s)');
+      this.updatePresence('online');
+    }, 30000);
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
@@ -59,8 +71,12 @@ export class RealtimeManager {
   }
 
   async updatePresence(status: PresenceStatus) {
-    if (!this.currentUserId) return;
+    if (!this.currentUserId) {
+      console.log('[RealtimeManager] updatePresence: No currentUserId, skipping');
+      return;
+    }
     
+    console.log('[RealtimeManager] updatePresence:', status, 'for user:', this.currentUserId);
     await supabase
       .from('user_presence')
       .upsert({
@@ -84,10 +100,14 @@ export class RealtimeManager {
       filter?: { event: string; schema: string; table: string; filter?: string };
     }
   ): RealtimeChannel {
+    console.log('[RealtimeManager] subscribeToChannel called:', channelName);
+    
     if (this.channels.has(channelName)) {
+      console.log('[RealtimeManager] Channel already exists, returning existing:', channelName);
       return this.channels.get(channelName)!;
     }
 
+    console.log('[RealtimeManager] Creating new channel subscription:', channelName);
     this.updateConnectionState('connecting');
 
     const channel = supabase.channel(channelName);
@@ -124,8 +144,10 @@ export class RealtimeManager {
   }
 
   private handleReconnect(channelName: string, options: any) {
+    console.log('[RealtimeManager] handleReconnect called for:', channelName, 'attempt:', this.reconnectAttempts);
+    
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts!) {
-      console.error(`[RealtimeManager] Max reconnect attempts reached for ${channelName}`);
+      console.error(`[RealtimeManager] ⚠️ Max reconnect attempts reached for ${channelName}`);
       this.config.onError?.(new Error('Max reconnect attempts reached'));
       return;
     }
@@ -194,7 +216,10 @@ let realtimeManager: RealtimeManager | null = null;
 
 export const getRealtimeManager = (config?: RealtimeManagerConfig): RealtimeManager => {
   if (!realtimeManager) {
+    console.log('[getRealtimeManager] Creating new RealtimeManager instance');
     realtimeManager = new RealtimeManager(config);
+  } else {
+    console.log('[getRealtimeManager] Returning existing RealtimeManager instance');
   }
   return realtimeManager;
 };
