@@ -1,28 +1,16 @@
 project_id = "wksgvhktytkkgzarbwmc"
 
-[functions.accept-invitation]
-verify_jwt = false
-
 [functions.create-invitation]
-verify_jwt = true
-
-[functions.create-livekit-token]
 verify_jwt = true
 
 [functions.create-user-direct]
 verify_jwt = true
 
-[functions.end-call]
-verify_jwt = true
-
-[functions.reset-user-password]
-verify_jwt = true
-
-[functions.send-scheduled-messages]
+[functions.validate-invitation]
 verify_jwt = false
 
-[functions.update-user-password]
-verify_jwt = true
+[functions.accept-invitation]
+verify_jwt = false
 
-[functions.validate-invitation]
+[functions.setup-admin]
 verify_jwt = false

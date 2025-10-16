@@ -11,7 +11,7 @@ const createUserSchema = z.object({
   email: z.string().email().max(255),
   fullName: z.string().trim().min(1).max(100),
   role: z.enum(['admin', 'moderator', 'user']),
-  temporaryPassword: z.string().min(8).max(128)
+  temporaryPassword: z.string().min(12).max(128)
     .regex(/[a-z]/, 'Password must contain lowercase letters')
     .regex(/[A-Z]/, 'Password must contain uppercase letters')
     .regex(/[0-9]/, 'Password must contain numbers')
@@ -126,20 +126,8 @@ serve(async (req) => {
       error: error.message,
       timestamp: new Date().toISOString()
     });
-    
-    // Return specific error messages to help the user
-    let errorMessage = 'Unable to create user. Please try again.';
-    
-    if (error.message?.includes('already been registered')) {
-      errorMessage = 'A user with this email address already exists.';
-    } else if (error.message?.includes('password')) {
-      errorMessage = 'Password does not meet security requirements.';
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Unable to create user. Please try again or contact support.' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

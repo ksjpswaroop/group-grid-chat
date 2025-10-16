@@ -54,56 +54,45 @@ export const DirectMessagesList = ({ onNewDM }: DirectMessagesListProps) => {
   }, []);
 
   const loadConversations = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    setCurrentUserId(user.id);
+
+    // Get all DMs where user is sender or recipient
+    const { data: messages } = await supabase
+      .from('direct_messages')
+      .select(`
+        *,
+        sender:profiles!direct_messages_sender_id_fkey(id, full_name, email),
+        recipient:profiles!direct_messages_recipient_id_fkey(id, full_name, email)
+      `)
+      .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+      .order('created_at', { ascending: false });
+
+    if (!messages) return;
+
+    // Group by conversation (other user)
+    const conversationsMap = new Map<string, DMConversation>();
+    
+    for (const msg of messages) {
+      const otherUserId = msg.sender_id === user.id ? msg.recipient_id : msg.sender_id;
+      const otherUser = msg.sender_id === user.id ? msg.recipient : msg.sender;
       
-      setCurrentUserId(user.id);
-
-      // Get all DMs where user is sender or recipient
-      const { data: messages, error } = await supabase
-        .from('direct_messages')
-        .select(`
-          *,
-          sender:profiles!direct_messages_sender_id_fkey(id, full_name, email),
-          recipient:profiles!direct_messages_recipient_id_fkey(id, full_name, email)
-        `)
-        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading DMs:', error);
-        setConversations([]);
-        return;
+      if (!conversationsMap.has(otherUserId)) {
+        conversationsMap.set(otherUserId, {
+          id: otherUserId,
+          name: null,
+          other_user: otherUser as any,
+          last_message: {
+            content: msg.content,
+            created_at: msg.created_at
+          }
+        });
       }
-
-      if (!messages) return;
-
-      // Group by conversation (other user)
-      const conversationsMap = new Map<string, DMConversation>();
-      
-      for (const msg of messages) {
-        const otherUserId = msg.sender_id === user.id ? msg.recipient_id : msg.sender_id;
-        const otherUser = msg.sender_id === user.id ? msg.recipient : msg.sender;
-        
-        if (!conversationsMap.has(otherUserId)) {
-          conversationsMap.set(otherUserId, {
-            id: otherUserId,
-            name: null,
-            other_user: otherUser as any,
-            last_message: {
-              content: msg.content,
-              created_at: msg.created_at
-            }
-          });
-        }
-      }
-
-      setConversations(Array.from(conversationsMap.values()));
-    } catch (error) {
-      console.error('Failed to load conversations:', error);
-      setConversations([]);
     }
+
+    setConversations(Array.from(conversationsMap.values()));
   };
 
   const userIds = conversations.map(c => c.other_user?.id).filter(Boolean) as string[];

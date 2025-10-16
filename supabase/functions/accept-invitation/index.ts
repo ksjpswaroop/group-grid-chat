@@ -10,14 +10,12 @@ const corsHeaders = {
 const acceptInvitationSchema = z.object({
   token: z.string().length(64),
   email: z.string().email().max(255),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must be at most 128 characters')
+  password: z.string().min(12).max(128)
     .regex(/[a-z]/, 'Password must contain lowercase letters')
     .regex(/[A-Z]/, 'Password must contain uppercase letters')
     .regex(/[0-9]/, 'Password must contain numbers')
-    .regex(/[@$!%*?&]/, 'Password must contain special characters (@$!%*?&)'),
-  fullName: z.string().trim().min(1, 'Full name is required').max(100, 'Full name must be at most 100 characters')
+    .regex(/[^a-zA-Z0-9]/, 'Password must contain special characters'),
+  fullName: z.string().trim().min(1).max(100)
 });
 
 serve(async (req) => {

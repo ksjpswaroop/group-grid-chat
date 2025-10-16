@@ -162,11 +162,9 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                {...(isInvite && {
-                  minLength: 12,
-                  pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{12,}$",
-                  title: "Password must be at least 12 characters with uppercase, lowercase, number and special character"
-                })}
+                minLength={12}
+                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$"
+                title="Password must be at least 12 characters with uppercase, lowercase, number and special character"
               />
           </div>
 

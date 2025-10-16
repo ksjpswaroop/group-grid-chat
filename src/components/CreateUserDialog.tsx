@@ -17,27 +17,11 @@ export const CreateUserDialog = () => {
   const [loading, setLoading] = useState(false);
 
   const generatePassword = () => {
-    // Ensure password has all required characters: uppercase, lowercase, number, special
-    const lowercase = "abcdefghjkmnpqrstuvwxyz";
-    const uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    const numbers = "23456789";
-    const special = "!@#$%&*";
-    
-    // Start with one of each required type
-    let password = 
-      lowercase.charAt(Math.floor(Math.random() * lowercase.length)) +
-      uppercase.charAt(Math.floor(Math.random() * uppercase.length)) +
-      numbers.charAt(Math.floor(Math.random() * numbers.length)) +
-      special.charAt(Math.floor(Math.random() * special.length));
-    
-    // Fill the rest randomly
-    const allChars = lowercase + uppercase + numbers + special;
-    for (let i = password.length; i < 12; i++) {
-      password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+    let password = "";
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    
-    // Shuffle the password
-    password = password.split('').sort(() => Math.random() - 0.5).join('');
     setTemporaryPassword(password);
   };
 
@@ -50,20 +34,7 @@ export const CreateUserDialog = () => {
         body: { email, fullName, role, temporaryPassword }
       });
 
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to create user');
-      }
-
-      if (data?.error) {
-        console.error('Edge function returned error:', data.error);
-        throw new Error(data.error);
-      }
-
-      if (!data?.success) {
-        console.error('Unexpected response:', data);
-        throw new Error('Failed to create user - unexpected response');
-      }
+      if (error) throw error;
 
       toast.success(`User created! Temporary password: ${temporaryPassword}`, {
         duration: 10000,
@@ -78,9 +49,7 @@ export const CreateUserDialog = () => {
       // Reload the users list
       window.location.reload();
     } catch (error: any) {
-      console.error('Create user error:', error);
-      const errorMessage = error.message || 'Failed to create user';
-      toast.error(errorMessage);
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
@@ -153,7 +122,7 @@ export const CreateUserDialog = () => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Must be 8+ characters with uppercase, lowercase, number, and special character (@$!%*?&). User will be required to change this password on first login.
+              User will be required to change this password on first login
             </p>
           </div>
 

@@ -2,13 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
-import { PasswordInput } from "@/components/PasswordInput";
-import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
-import { PasswordRequirements } from "@/components/PasswordRequirements";
 
 const ChangePassword = () => {
   const [newPassword, setNewPassword] = useState("");
@@ -38,30 +36,6 @@ const ChangePassword = () => {
     }
   };
 
-  const validatePassword = (password: string): boolean => {
-    if (password.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return false;
-    }
-    if (!/[a-z]/.test(password)) {
-      toast.error("Password must contain lowercase letters");
-      return false;
-    }
-    if (!/[A-Z]/.test(password)) {
-      toast.error("Password must contain uppercase letters");
-      return false;
-    }
-    if (!/[0-9]/.test(password)) {
-      toast.error("Password must contain numbers");
-      return false;
-    }
-    if (!/[@$!%*?&]/.test(password)) {
-      toast.error("Password must contain special characters (@$!%*?&)");
-      return false;
-    }
-    return true;
-  };
-
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -70,27 +44,34 @@ const ChangePassword = () => {
       return;
     }
 
-    if (!validatePassword(newPassword)) {
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
 
     setLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
-
-      const { error, data } = await supabase.functions.invoke('update-user-password', {
-        body: { newPassword }
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (updateError) throw updateError;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not found");
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ password_change_required: false })
+        .eq("id", user.id);
+
+      if (profileError) throw profileError;
 
       toast.success("Password changed successfully!");
       navigate("/");
     } catch (error: any) {
-      toast.error(error.message || "Failed to change password");
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
@@ -111,27 +92,25 @@ const ChangePassword = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleChangePassword} className="space-y-6">
+          <form onSubmit={handleChangePassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
-              <PasswordInput
+              <Input
                 id="newPassword"
+                type="password"
                 placeholder="Enter new password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 minLength={8}
-                aria-describedby="password-requirements"
               />
-              <PasswordStrengthIndicator password={newPassword} className="mt-2" />
             </div>
-
-            <PasswordRequirements password={newPassword} />
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <PasswordInput
+              <Input
                 id="confirmPassword"
+                type="password"
                 placeholder="Confirm new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
